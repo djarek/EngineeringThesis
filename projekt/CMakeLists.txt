@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.2)
 project(FluidSim)
-set(CMAKE_CXX_FLAGS "-std=c++1y -Wall")
+find_package(OpenCL)
+set(CMAKE_CXX_FLAGS "-std=c++1y -Wall -pedantic")
 add_executable(FluidSim main.cpp)
 
 install(TARGETS FluidSim RUNTIME DESTINATION bin)

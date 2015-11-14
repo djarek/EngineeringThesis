@@ -1,3 +1,4 @@
+
 #include "kernels/inc.h"
 
 Point getPosition()
@@ -6,26 +7,51 @@ Point getPosition()
 	return point;
 }
 
-Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
+Vector lerp(Vector s, Vector e, float t)
 {
-	const float x = position.x;
-	const float y = position.y;
-	
-	const int x1 = floor(position.x);
-	const int x2 = ceil(position.x);
-	const int y1 = floor(position.y);
-	const int y2 = ceil(position.y);
-
-	Vector ret = field[AT(x1, y1)] * (x2 - x) * (y2 - y);
-	ret += field[AT(x2, y1)] * (x - x1) * (y2 - y);
-	ret += field[AT(x1, y2)] * (x2 - x) * (y - y1);
-	ret += field[AT(x2, y2)] * (x - x1) * (y - y1);
-	ret /= (x2 - x1) * (y2 - y1);
-
-	return ret;
+	return s+(e-s)*t;
 }
 
-kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step)
+Vector blerp(Vector c00, Vector c10, Vector c01, Vector c11, float tx, float ty){
+	return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+}
+
+Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
+{
+	const int x = floor(max(position.x, 0.0f));
+	const int y = floor(max(position.y, 0.0f));
+	
+	const int x1 = min(x, SIZE - 1);
+	const int x2 = min(x + 1, SIZE - 1);
+	const int y1 = min(y, SIZE - 1);
+	const int y2 = min(y + 1, SIZE - 1);
+
+	return blerp(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x, y);
+}
+
+/*Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
+{
+	const int x = floor(max((float)min(position.x, (float)SIZE - 1), 0.0f));
+	const int y = floor(max((float)min(position.y, (float)SIZE - 1), 0.0f));
+	
+	const int x1 = max(x, 0);
+	const int x2 = max(x + 1, 0);
+	const int y1 = max(y, 0);
+	const int y2 = max(y + 1, 0);
+	Vector ret;
+	if (x1 != x2 && y1 != y2) {
+		ret = field[AT(x1, y1)] * (x2 - x) * (y2 - y);
+		ret += field[AT(x2, y1)] * (x - x1) * (y2 - y);
+		ret += field[AT(x1, y2)] * (x2 - x) * (y - y1);
+		ret += field[AT(x2, y2)] * (x - x1) * (y - y1);
+		ret /= (x2 - x1) * (y2 - y1);
+	} else {
+		ret = field[AT(x1, y1)];
+	}
+	return ret;
+}*/
+
+kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step, const Vector dissipation)
 {
 	const Point position = getPosition();
 
@@ -33,7 +59,7 @@ kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalV
 	Vector vec_pos = {position.x, position.y};
 	vec_pos -= old_position;
 
-	x_out[AT_POS(position)] = bilinear_interpolation(x, vec_pos);
+	x_out[AT_POS(position)] += bilinear_interpolation(x, vec_pos) * dissipation;
 }
 
 kernel void vector_jacobi_iteration(const GlobalVectorField x, const GlobalVectorField b, GlobalVectorField x_out, const float alpha, const float beta_reciprocal)
@@ -65,13 +91,14 @@ kernel void scalar_jacobi_iteration(const GlobalScalarField x, const GlobalScala
 kernel void divergence(const GlobalVectorField w, GlobalScalarField divergence_w_out, const float halved_reverse_dx)
 {
 	const Point position = getPosition();
-
+	
 	const Vector w_left = w[AT(position.x - 1, position.y)];
 	const Vector w_right = w[AT(position.x + 1, position.y)];
 	const Vector w_top = w[AT(position.x, position.y + 1)];
 	const Vector w_bottom = w[AT(position.x, position.y - 1)];
 
 	divergence_w_out[AT_POS(position)] = halved_reverse_dx * (w_right.x - w_left.x + w_top.y - w_bottom.y);
+	
 }
 
 kernel void gradient(const GlobalScalarField p, GlobalVectorField gradient_p_out, const float halved_reverse_dx)

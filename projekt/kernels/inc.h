@@ -11,6 +11,12 @@ typedef int2 Point;
 // #define GlobalVectorField Vector*
 // #define GlobalScalarField Scalar*
 
-#define SIZE 4
-#define AT(x, y) y*SIZE + x
-#define AT_POS(pos) AT(pos.x, pos.y)
+inline size_t AT(size_t x, size_t y)
+{
+	return y*SIZE + x;
+}
+
+inline size_t AT_POS(Point pos)
+{
+	return AT(pos.x, pos.y);
+}
