@@ -12,10 +12,11 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	gradient_kernel(program, "gradient"),
 	subtract_gradient_p_kernel(program, "subtract_gradient_p"),
 	vector_boundary_kernel(program, "vector_boundary_condition"),
-	scalar_boundary_kernel(program, "scalar_boundary_condition"),
-	scalar_buffer(cell_count * cell_count, Scalar{0.0}),
-	vector_buffer(cell_count * cell_count, Vector{0.0, 0.0})
+	scalar_boundary_kernel(program, "scalar_boundary_condition")
 {
+	ScalarField scalar_buffer(cell_count * cell_count, Scalar{0.0});
+	VectorField vector_buffer(cell_count * cell_count, Vector{0.0, 0.0});
+
 	u = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
 	w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
 	gradient_p = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
@@ -26,7 +27,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const cl_float time_step = 0.1;
-	const cl_float dx = 0.01;
+	const cl_float dx = 0.1;
 	const cl_float dx_reciprocal = 1/dx;
 	const cl_float halved_dx_reciprocal = dx_reciprocal*0.5;
 	const auto dissipation = Vector{0.99, 0.99};
@@ -106,8 +107,6 @@ void Simulation::calculate_advection()
 void Simulation::calculate_diffusion()
 {
 	zero_fill_vector_field(w);
-	/*cmd_queue.enqueueCopyBuffer(u, w, 0, 0, sizeof(Vector)*cell_count*cell_count);
-	cmd_queue.enqueueBarrierWithWaitList();*/
 	vector_jacobi_kernel.setArg(1, u);
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
@@ -132,16 +131,18 @@ void Simulation::calculate_divergence_w()
 
 void Simulation::zero_fill_vector_field(cl::Buffer& field)
 {
-	std::fill(vector_buffer.begin(), vector_buffer.end(), Vector{0, 0});
+	/*std::fill(vector_buffer.begin(), vector_buffer.end(), Vector{0, 0});
 	cl::copy(cmd_queue, vector_buffer.begin(), vector_buffer.end(), field);
-	cmd_queue.enqueueBarrierWithWaitList();
+	cmd_queue.enqueueBarrierWithWaitList();*/
+	cmd_queue.enqueueFillBuffer(field, Vector{0.0}, 0, cell_count*cell_count);
 }
 
 void Simulation::zero_fill_scalar_field(cl::Buffer& field)
 {
-	std::fill(scalar_buffer.begin(), scalar_buffer.end(), Scalar{0});
+	/*std::fill(scalar_buffer.begin(), scalar_buffer.end(), Scalar{0});
 	cl::copy(cmd_queue, scalar_buffer.begin(), scalar_buffer.end(), field);
-	cmd_queue.enqueueBarrierWithWaitList();
+	cmd_queue.enqueueBarrierWithWaitList();*/
+	cmd_queue.enqueueFillBuffer(field, Scalar{0.0}, 0, cell_count*cell_count);
 }
 
 void Simulation::calculate_p()
@@ -202,4 +203,12 @@ void Simulation::update()
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
+}
+
+void Simulation::get_pressure_field(ScalarField& pressure_out)
+{
+	//assert(pressure_out.size() == scalar_buffer.size());
+	pressure_out.resize(cell_count*cell_count);
+	cl::copy(cmd_queue, p, pressure_out.begin(), pressure_out.end());
+	cmd_queue.finish();
 }

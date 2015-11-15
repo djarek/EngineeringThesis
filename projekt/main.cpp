@@ -4,13 +4,13 @@
 #include <string>
 #include "simulation.h"
 
-std::ofstream& operator << (std::ofstream& out, const Vector& vec)
+auto& operator<<(std::ofstream& out, const Vector& vec)
 {
 	out << "("<< vec.s[0] << "," << vec.s[1] << ") ";
 	return out;
 }
 
-cl::Program load_program(const cl::Context& context, const size_t size)
+auto load_program(const cl::Context& context, const size_t size)
 {
 	std::ifstream kernels_file("kernels/kernels.cl");
 	std::string kernel_sources {"#define SIZE "};
@@ -28,8 +28,8 @@ int main()
 	cl::Platform::get(&platforms);
 	platforms[0].getDevices(CL_DEVICE_TYPE_CPU, &devices);
 	
-	cl::Context context(devices);
-	cl::CommandQueue cmd_queue(context, devices[0]);
+	cl::Context context{devices};
+	cl::CommandQueue cmd_queue{context, devices[0]};
 	
 	cl_uint dim = 128;
 
@@ -41,9 +41,10 @@ int main()
 		throw;
 	}
 
-	Simulation sim{cmd_queue, context, dim, program};
+	ScalarField p;
+	Simulation simulation{cmd_queue, context, dim, program};
 	for (int y = 0; y < 2000; ++y) {
-		sim.update();
+		simulation.update();
 	}
 	
 	return 0;

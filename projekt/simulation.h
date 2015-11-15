@@ -6,6 +6,8 @@ using Scalar = cl_float;
 using Vector = cl_float2;
 using Point  = cl_int2;
 using Offset = Point;
+using ScalarField = std::vector<Scalar>;
+using VectorField = std::vector<Vector>;
 
 class Simulation
 {
@@ -33,11 +35,11 @@ class Simulation
 	cl::Kernel vector_boundary_kernel;
 	cl::Kernel scalar_boundary_kernel;
 
-	std::vector<Scalar> scalar_buffer;
-	std::vector<Vector> vector_buffer;
-	
 public:
 	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program);
+	void update();
+	void get_pressure_field(ScalarField& pressure_out);
+private:
 	void enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const;
 	void enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kernel& kernel) const;
 	void calculate_advection();
@@ -50,5 +52,4 @@ public:
 	void apply_vector_boundary_conditions(cl::Buffer& buffer);
 	void calculate_gradient_p();
 	void calculate_u();
-	void update();
 };
