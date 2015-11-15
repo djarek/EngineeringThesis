@@ -14,6 +14,12 @@ using Vector = cl_float2;
 using Point  = cl_int2;
 using Offset = Point;
 
+std::ofstream& operator << (std::ofstream& out, const Vector& vec)
+{
+	out << "("<< vec.s[0] << "," << vec.s[1] << ") ";
+	return out;
+}
+
 class Simulation
 {
 	cl::CommandQueue cmd_queue;
@@ -30,7 +36,7 @@ class Simulation
 	cl::Buffer gradient_p;
 
 	cl_uint cell_count;
-	
+
 	cl::Kernel advection_kernel;
 	cl::Kernel scalar_jacobi_kernel;
 	cl::Kernel vector_jacobi_kernel;
@@ -58,10 +64,7 @@ public:
 		scalar_buffer(cell_count * cell_count, Scalar{0.0f}),
 		vector_buffer(cell_count * cell_count, Vector{0.0f, 0.0f})
 	{
-		vector_buffer[cell_count + 1] = Vector{1111.f,1111.1f};
 		u = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
-		cmd_queue.finish();
-		vector_buffer[cell_count + 1] = Vector{0.0f, 0.0f};
 		w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
 		gradient_p = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
 		temporary_w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
@@ -100,11 +103,11 @@ public:
 		const cl_float alpha = dx * dx / (ni * time_step);
 		vector_jacobi_kernel.setArg(3, alpha);
 		vector_jacobi_kernel.setArg(4, 1/(4 + alpha));
-		
+
 		gradient_kernel.setArg(0, p);
 		gradient_kernel.setArg(1, gradient_p);
 		gradient_kernel.setArg(2, halved_dx_reciprocal);
-		
+
 		subtract_gradient_p_kernel.setArg(0, w);
 		subtract_gradient_p_kernel.setArg(1, gradient_p);
 		subtract_gradient_p_kernel.setArg(2, u);
@@ -154,8 +157,7 @@ public:
 		/*cmd_queue.enqueueCopyBuffer(u, w, 0, 0, sizeof(Vector)*cell_count*cell_count);
 		cmd_queue.enqueueBarrierWithWaitList();*/
 		vector_jacobi_kernel.setArg(1, u);
-		
-		
+
 		for (int i = 0; i < 100; ++i) {
 			apply_vector_boundary_conditions(w);
 
@@ -168,22 +170,21 @@ public:
 		}
 
 		apply_vector_boundary_conditions(w);
-		
 	}
-	
+
 	void calculate_divergence_w()
 	{
 		divergence_kernel.setArg(0, w);
 		enqueueInnerKernel(cmd_queue, divergence_kernel);
 	}
-	
+
 	void zero_fill_vector_field(cl::Buffer& field)
 	{
 		std::fill(vector_buffer.begin(), vector_buffer.end(), Vector{0, 0});
 		cl::copy(cmd_queue, vector_buffer.begin(), vector_buffer.end(), field);
 		cmd_queue.enqueueBarrierWithWaitList();
 	}
-	
+
 	void zero_fill_scalar_field(cl::Buffer& field)
 	{
 		std::fill(scalar_buffer.begin(), scalar_buffer.end(), Scalar{0});
@@ -191,7 +192,6 @@ public:
 		cmd_queue.enqueueBarrierWithWaitList();
 	}
 
-	
 	void calculate_p()
 	{
 		//Zero-out p to improve convergence rate
@@ -210,7 +210,7 @@ public:
 
 		apply_scalar_boundary_conditions(p);
 	}
-	
+
 	void apply_scalar_boundary_conditions(cl::Buffer& buffer)
 	{
 		scalar_boundary_kernel.setArg(0, buffer);
@@ -228,20 +228,17 @@ public:
 		gradient_kernel.setArg(0, p);
 		enqueueInnerKernel(cmd_queue, gradient_kernel);
 	}
-	
+
 	void calculate_u()
 	{
 		enqueueInnerKernel(cmd_queue, subtract_gradient_p_kernel);
 	}
-	
+
 	void update()
 	{
-		static uint i = 0;
-		apply_vector_boundary_conditions(u);
 		calculate_diffusion();
 		calculate_advection();
 		apply_vector_boundary_conditions(w);
-		//TODO: Diffusion
 		//TODO: Force application
 		calculate_divergence_w();
 		apply_scalar_boundary_conditions(divergence_w);
@@ -253,30 +250,10 @@ public:
 
 		calculate_u();
 		apply_vector_boundary_conditions(u);
-// 		if (++i > 1) {
-			i = 0;
-			cl::copy(cmd_queue, u, vector_buffer.begin(), vector_buffer.end());
-			//cl::copy(cmd_queue, p, scalar_buffer.begin(), scalar_buffer.end());
-			for (uint y = 0; y < cell_count; ++y) {
-				for (uint x = 0; x < cell_count; ++x) {
-					std::cout << "("<< vector_buffer[y*cell_count + x].s[0] << "," << vector_buffer[y*cell_count + x].s[1] << ") ";
-				}
-				std::cout << "\n";
-			}
-			std::cout << "\n";
-
-			/*for (uint y = 0; y < cell_count; ++y) {
-				for (uint x = 0; x < cell_count; ++x) {
-					std::cout << scalar_buffer[y*cell_count + x] << " ";
-				}
-				std::cout << "\n";
-			}
-			std::cout << std::endl;*/
-// 		}
 	}
 };
 
-cl::Program load_program(const cl::Context& context, size_t size)
+cl::Program load_program(const cl::Context& context, const size_t size)
 {
 	std::ifstream kernels_file("kernels/kernels.cl");
 	std::string kernel_sources {"#define SIZE "};
