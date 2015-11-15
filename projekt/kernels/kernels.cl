@@ -1,22 +1,38 @@
 
-#include "kernels/inc.h"
+typedef float2 Vector;
+typedef Vector VectorField;
+typedef float Scalar;
+typedef int2 Point;
 
-Point getPosition()
+#define GlobalVectorField global Vector*
+#define GlobalScalarField global Scalar*
+
+inline size_t AT(size_t x, size_t y)
+{
+	return y*SIZE + x;
+}
+
+inline size_t AT_POS(Point pos)
+{
+	return AT(pos.x, pos.y);
+}
+
+inline Point getPosition()
 {
 	Point point = {get_global_id(0), get_global_id(1)};
 	return point;
 }
 
-Vector lerp(Vector s, Vector e, float t)
+inline Vector lerp(Vector s, Vector e, float t)
 {
 	return s+(e-s)*t;
 }
 
-Vector blerp(Vector c00, Vector c10, Vector c01, Vector c11, float tx, float ty){
+inline Vector blerp(Vector c00, Vector c10, Vector c01, Vector c11, float tx, float ty){
 	return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
 }
 
-Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
+inline Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
 {
 	const int x = floor(max(position.x, 0.0f));
 	const int y = floor(max(position.y, 0.0f));
@@ -28,28 +44,6 @@ Vector bilinear_interpolation(const GlobalVectorField field, const Vector positi
 
 	return blerp(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x, y);
 }
-
-/*Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
-{
-	const int x = floor(max((float)min(position.x, (float)SIZE - 1), 0.0f));
-	const int y = floor(max((float)min(position.y, (float)SIZE - 1), 0.0f));
-	
-	const int x1 = max(x, 0);
-	const int x2 = max(x + 1, 0);
-	const int y1 = max(y, 0);
-	const int y2 = max(y + 1, 0);
-	Vector ret;
-	if (x1 != x2 && y1 != y2) {
-		ret = field[AT(x1, y1)] * (x2 - x) * (y2 - y);
-		ret += field[AT(x2, y1)] * (x - x1) * (y2 - y);
-		ret += field[AT(x1, y2)] * (x2 - x) * (y - y1);
-		ret += field[AT(x2, y2)] * (x - x1) * (y - y1);
-		ret /= (x2 - x1) * (y2 - y1);
-	} else {
-		ret = field[AT(x1, y1)];
-	}
-	return ret;
-}*/
 
 kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step, const Vector dissipation)
 {
