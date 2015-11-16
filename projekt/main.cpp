@@ -3,6 +3,8 @@
 #include <fstream>
 #include <string>
 #include "simulation.h"
+#include "mainwindow.h"
+#include "thread"
 
 auto& operator<<(std::ofstream& out, const Vector& vec)
 {
@@ -18,6 +20,14 @@ auto load_program(const cl::Context& context, const size_t size)
 	std::copy(std::istreambuf_iterator<char>(kernels_file), std::istreambuf_iterator<char>(), std::back_inserter(kernel_sources));
 
 	return cl::Program(context, kernel_sources);
+}
+
+void ui_main()
+{
+	SDL_Init(SDL_INIT_EVERYTHING);
+	MainWindow window{640, 640};
+	window.event_loop();
+	SDL_Quit();
 }
 
 int main()
@@ -42,10 +52,13 @@ int main()
 	}
 
 	ScalarField p;
+	
+	std::thread ui_thread{ui_main};
 	Simulation simulation{cmd_queue, context, dim, program};
 	for (int y = 0; y < 2000; ++y) {
 		simulation.update();
 	}
-	
+
+	ui_thread.join();
 	return 0;
 }
