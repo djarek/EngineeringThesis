@@ -1,13 +1,11 @@
+#ifndef SIMULATION_H
+#define SIMULATION_H
+
 #define __CL_ENABLE_EXCEPTIONS
 #include <CL/cl.hpp>
-#include <CL/opencl.h>
 
-using Scalar = cl_float;
-using Vector = cl_float2;
-using Point  = cl_int2;
-using Offset = Point;
-using ScalarField = std::vector<Scalar>;
-using VectorField = std::vector<Vector>;
+#include "typedefs.h"
+#include "channel.h"
 
 class Simulation
 {
@@ -17,6 +15,7 @@ class Simulation
 	cl::Buffer p; //pressure field
 	cl::Buffer temporary_p;
 	cl::Buffer divergence_w;
+	cl::Buffer dye;
 
 	//vector fields
 	cl::Buffer u; //divergence-free velocity field
@@ -25,6 +24,7 @@ class Simulation
 	cl::Buffer gradient_p;
 
 	cl_uint cell_count;
+	cl_uint total_cell_count;
 
 	cl::Kernel advection_kernel;
 	cl::Kernel scalar_jacobi_kernel;
@@ -35,10 +35,11 @@ class Simulation
 	cl::Kernel vector_boundary_kernel;
 	cl::Kernel scalar_boundary_kernel;
 
+	Channel_ptr<VectorField> to_ui;
+	Channel_ptr<VectorField> from_ui;
 public:
-	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program);
+	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui);
 	void update();
-	void get_pressure_field(ScalarField& pressure_out);
 private:
 	void enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const;
 	void enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kernel& kernel) const;
@@ -53,3 +54,4 @@ private:
 	void calculate_gradient_p();
 	void calculate_u();
 };
+#endif //SIMULATION_H

@@ -34,15 +34,14 @@ inline Vector blerp(Vector c00, Vector c10, Vector c01, Vector c11, float tx, fl
 
 inline Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
 {
-	const int x = floor(max(position.x, 0.0f));
-	const int y = floor(max(position.y, 0.0f));
-	
+	const int x = max((int)floor(position.x), 0);
+	const int y = max((int)floor(position.y), 0);
 	const int x1 = min(x, SIZE - 1);
 	const int x2 = min(x + 1, SIZE - 1);
 	const int y1 = min(y, SIZE - 1);
 	const int y2 = min(y + 1, SIZE - 1);
 
-	return blerp(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x, y);
+	return blerp(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], position.x, position.y);
 }
 
 kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step, const Vector dissipation)

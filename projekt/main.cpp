@@ -5,7 +5,9 @@
 #include "simulation.h"
 #include "mainwindow.h"
 #include "thread"
+#include "atomic"
 
+std::atomic<bool> running {true};
 auto& operator<<(std::ofstream& out, const Vector& vec)
 {
 	out << "("<< vec.s[0] << "," << vec.s[1] << ") ";
@@ -22,16 +24,21 @@ auto load_program(const cl::Context& context, const size_t size)
 	return cl::Program(context, kernel_sources);
 }
 
-void ui_main()
+void ui_main(Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{640, 640};
+	MainWindow window{322*2, 322*2, dim, to_ui, from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
 
 int main()
 {
+	auto to_ui = Channel<VectorField>::make();
+	auto from_ui = Channel<VectorField>::make();
+	cl_uint dim = 32*20 + 2;
+	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
+
 	std::vector<cl::Platform> platforms;
 	std::vector<cl::Device> devices;
 	
@@ -40,8 +47,8 @@ int main()
 	
 	cl::Context context{devices};
 	cl::CommandQueue cmd_queue{context, devices[0]};
+
 	
-	cl_uint dim = 128;
 
 	auto program = load_program(context, dim);
 	try {
@@ -51,11 +58,8 @@ int main()
 		throw;
 	}
 
-	ScalarField p;
-	
-	std::thread ui_thread{ui_main};
-	Simulation simulation{cmd_queue, context, dim, program};
-	for (int y = 0; y < 2000; ++y) {
+	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui};
+	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
 	}
 
