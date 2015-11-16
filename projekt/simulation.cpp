@@ -22,9 +22,10 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	ScalarField scalar_buffer(total_cell_count, Scalar{0.0});
 	VectorField vector_buffer(total_cell_count, Vector{0.0, 0.0});
 	VectorField v(total_cell_count, Vector{0.0, 0.0});
-	std::generate(v.begin(), v.end(), [](){return Vector{1.0f*std::rand()/RAND_MAX, 1.0f*std::rand()/RAND_MAX};});
-	std::fill(v.begin()+total_cell_count/2, v.end(), Vector{1, 1});
+	std::srand(std::time(nullptr));
+	std::generate(v.begin(), v.end(), [](){return Vector{(std::rand()/RAND_MAX-0.5), (std::rand()/RAND_MAX-0.5)};});
 	u = cl::Buffer{context, v.begin(), v.end(), false};
+	std::fill(v.begin(), v.end(), Vector{10, 0});
 	dye = cl::Buffer{context, v.begin(), v.end(), false};
 	w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
 	gradient_p = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
@@ -34,11 +35,11 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
-	const cl_float time_step = 0.010;
-	const cl_float dx = 1;
+	const cl_float time_step = .000001;
+	const cl_float dx = 10;
 	const cl_float dx_reciprocal = 1 / dx;
 	const cl_float halved_dx_reciprocal = dx_reciprocal * 0.5;
-	const auto dissipation = Vector{0.99, 0.99};
+	const auto dissipation = Vector{1, 1};
 	const cl_float ni = 1.13e-6;
 
 	advection_kernel.setArg(0, u);
@@ -102,7 +103,7 @@ void Simulation::enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kerne
 	const auto offset = cl::NDRange{1, 1};
 	// Subtract 2 from the range in each dimension to account for 2 boundary cells
 	// top & bottom or left & right cells
-	const auto range  = cl::NDRange{1,  1};
+	const auto range  = cl::NDRange{32, 32};
 	
 	for (uint y = 1; y < cell_count - 2; y += 32) {
 		for (uint x = 1; x < cell_count - 2; x += 32) {
@@ -209,6 +210,16 @@ void Simulation::calculate_u()
 	enqueueInnerKernel(cmd_queue, subtract_gradient_p_kernel);
 }
 
+void Simulation::advect_dye()
+{
+	advection_kernel.setArg(0, dye);
+	advection_kernel.setArg(1, u);
+	advection_kernel.setArg(2, temporary_w);
+	zero_fill_vector_field(temporary_w);
+	enqueueInnerKernel(cmd_queue, advection_kernel);
+	std::swap(dye, temporary_w);
+}
+
 void Simulation::update()
 {
 	calculate_diffusion();
@@ -225,12 +236,13 @@ void Simulation::update()
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
-
+	
+	advect_dye();
 	VectorField output_buffer;
 	if (not from_ui->try_pop(output_buffer)) {
 		output_buffer.resize(total_cell_count);
 	}
-	cl::copy(cmd_queue, u, output_buffer.begin(), output_buffer.end());
+	cl::copy(cmd_queue, dye, output_buffer.begin(), output_buffer.end());
 	cmd_queue.finish();
-	to_ui->try_push(output_buffer);
+	while (not to_ui->try_push(output_buffer));
 }

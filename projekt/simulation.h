@@ -53,5 +53,6 @@ private:
 	void apply_vector_boundary_conditions(cl::Buffer& buffer);
 	void calculate_gradient_p();
 	void calculate_u();
+	void advect_dye();
 };
 #endif //SIMULATION_H

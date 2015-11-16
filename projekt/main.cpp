@@ -27,7 +27,7 @@ auto load_program(const cl::Context& context, const size_t size)
 void ui_main(Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{322*2, 322*2, dim, to_ui, from_ui};
+	MainWindow window{1040, 1040, dim, to_ui, from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
@@ -36,7 +36,7 @@ int main()
 {
 	auto to_ui = Channel<VectorField>::make();
 	auto from_ui = Channel<VectorField>::make();
-	cl_uint dim = 32*20 + 2;
+	cl_uint dim = 1024 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
@@ -61,6 +61,7 @@ int main()
 	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
+		std::cout << "frame" << std::endl;
 	}
 
 	ui_thread.join();
