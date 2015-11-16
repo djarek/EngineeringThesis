@@ -28,8 +28,8 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 
 	const cl_float time_step = 0.1;
 	const cl_float dx = 0.1;
-	const cl_float dx_reciprocal = 1/dx;
-	const cl_float halved_dx_reciprocal = dx_reciprocal*0.5;
+	const cl_float dx_reciprocal = 1 / dx;
+	const cl_float halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto dissipation = Vector{0.99, 0.99};
 	const cl_float ni = 1.13e-6;
 
@@ -134,7 +134,7 @@ void Simulation::zero_fill_vector_field(cl::Buffer& field)
 	/*std::fill(vector_buffer.begin(), vector_buffer.end(), Vector{0, 0});
 	cl::copy(cmd_queue, vector_buffer.begin(), vector_buffer.end(), field);
 	cmd_queue.enqueueBarrierWithWaitList();*/
-	cmd_queue.enqueueFillBuffer(field, Vector{0.0}, 0, cell_count*cell_count);
+	cmd_queue.enqueueFillBuffer(field, Vector{0.0}, 0, cell_count * cell_count);
 }
 
 void Simulation::zero_fill_scalar_field(cl::Buffer& field)
@@ -142,7 +142,7 @@ void Simulation::zero_fill_scalar_field(cl::Buffer& field)
 	/*std::fill(scalar_buffer.begin(), scalar_buffer.end(), Scalar{0});
 	cl::copy(cmd_queue, scalar_buffer.begin(), scalar_buffer.end(), field);
 	cmd_queue.enqueueBarrierWithWaitList();*/
-	cmd_queue.enqueueFillBuffer(field, Scalar{0.0}, 0, cell_count*cell_count);
+	cmd_queue.enqueueFillBuffer(field, Scalar{0.0}, 0, cell_count * cell_count);
 }
 
 void Simulation::calculate_p()
