@@ -168,10 +168,10 @@ kernel void scalar_boundary_condition(GlobalScalarField field, const Point offse
 kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, const Vector force, const float impulse_range, const float dt)
 {
 	const Point position = getPosition();
-	const Vector grav = {0, 0};
+	const Vector grav = {0, 0.0};
 	int dist_from_impulse_squared = pown((float)(position.x - impulse_position.x), 2) + pown((float)(position.y - impulse_position.y), 2);
 	
-	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2)) + grav;
+	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2));
 }
 
 kernel void add_dye(GlobalScalarField dye, const Point impulse_position, const Scalar dye_change, const float impulse_range, const float dt)

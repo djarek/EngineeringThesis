@@ -27,7 +27,7 @@ auto load_program(const cl::Context& context, const size_t size)
 void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{258, 258, dim, to_ui, from_ui};
+	MainWindow window{1040, 768, dim, to_ui, from_ui};
 	window.event_loop();
 	SDL_Quit();
 }

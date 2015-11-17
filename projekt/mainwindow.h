@@ -33,7 +33,7 @@ class MainWindow
 	Channel_ptr<ScalarField> from_ui;
 public:
 	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui):
-		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN)),
+		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
