@@ -42,6 +42,7 @@ class Simulation
 	Channel_ptr<ScalarField> to_ui;
 	Channel_ptr<ScalarField> from_ui;
 	
+	VectorField zero_vector_buffer;
 public:
 	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui);
 	void update();

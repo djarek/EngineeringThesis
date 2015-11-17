@@ -20,16 +20,16 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	add_dye_kernel(program, "add_dye"),
 	dye_boundary_conditions_kernel(program, "apply_dye_boundary_conditions"),
 	to_ui(to_ui),
-	from_ui(from_ui)
+	from_ui(from_ui),
+	zero_vector_buffer(total_cell_count, Vector{0.0, 0.0})
 {
 	ScalarField scalar_buffer(total_cell_count, Scalar{0.0});
-	VectorField vector_buffer(total_cell_count, Vector{0.0, 0.0});
 
-	u = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
+	u = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
 	dye = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
-	w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
-	gradient_p = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
-	temporary_w = cl::Buffer{context, vector_buffer.begin(), vector_buffer.end(), false};
+	w = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
+	gradient_p = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
+	temporary_w = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
 
 	p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
@@ -41,7 +41,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	const cl_float halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
 	const cl_float dye_dissipation = 0.9999;
-	const cl_float ni = 1.13e-6;
+	const cl_float ni = 1.13e-9;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, w);
@@ -144,7 +144,6 @@ void Simulation::calculate_diffusion()
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
 		apply_vector_boundary_conditions(w);
-		cmd_queue.finish();
 
 		vector_jacobi_kernel.setArg(0, w);
 		vector_jacobi_kernel.setArg(2, temporary_w);
@@ -167,9 +166,7 @@ void Simulation::calculate_divergence_w()
 
 void Simulation::zero_fill_vector_field(cl::Buffer& field)
 {
-	VectorField vector_buffer(total_cell_count, Vector{0.0, 0.0});
-	cl::copy(cmd_queue, vector_buffer.begin(), vector_buffer.end(), field);
-	//cmd_queue.enqueueFillBuffer(field, Vector{0.0, 0.0}, 0, total_cell_count);
+	cl::copy(cmd_queue, zero_vector_buffer.begin(), zero_vector_buffer.end(), field);
 }
 
 void Simulation::zero_fill_scalar_field(cl::Buffer& field)
@@ -254,7 +251,7 @@ void Simulation::add_dye()
 	Point center{static_cast<cl_int>(cell_count/3), static_cast<cl_int>(cell_count/3)};
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, center);
-	add_dye_kernel.setArg(2, Scalar{500});
+	add_dye_kernel.setArg(2, Scalar{400});
 	add_dye_kernel.setArg(3, cl_float{2});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
 }
