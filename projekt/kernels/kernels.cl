@@ -23,16 +23,16 @@ inline Point getPosition()
 	return point;
 }
 
-inline Vector lerp(Vector s, Vector e, float t)
+inline Scalar lerp_scalar(Scalar s, Scalar e, float t)
 {
 	return s+(e-s)*t;
 }
 
-inline Vector blerp(Vector c00, Vector c10, Vector c01, Vector c11, float tx, float ty){
-	return lerp(lerp(c00, c10, tx), lerp(c01, c11, tx), ty);
+inline Scalar blerp_scalar(Scalar c00, Scalar c10, Scalar c01, Scalar c11, float tx, float ty){
+	return lerp_scalar(lerp_scalar(c00, c10, tx), lerp_scalar(c01, c11, tx), ty);
 }
 
-inline Vector bilinear_interpolation(const GlobalVectorField field, const Vector position)
+inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const Vector position)
 {
 	const int x = max((int)floor(position.x), 0);
 	const int y = max((int)floor(position.y), 0);
@@ -41,10 +41,10 @@ inline Vector bilinear_interpolation(const GlobalVectorField field, const Vector
 	const int y1 = min(y, SIZE - 1);
 	const int y2 = min(y + 1, SIZE - 1);
 
-	return blerp(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], position.x, position.y);
+	return blerp_scalar(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], position.x, position.y);
 }
 
-kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step, const Vector dissipation)
+kernel void advect_scalar(const GlobalScalarField x, const GlobalVectorField u, GlobalScalarField x_out, const float dx_reversed, const float time_step, const Scalar dissipation)
 {
 	const Point position = getPosition();
 
@@ -52,7 +52,40 @@ kernel void advect(const GlobalVectorField x, const GlobalVectorField u, GlobalV
 	Vector vec_pos = {position.x, position.y};
 	vec_pos -= old_position;
 
-	x_out[AT_POS(position)] += bilinear_interpolation(x, vec_pos) * dissipation;
+	x_out[AT_POS(position)] += bilinear_interpolation_scalar(x, vec_pos) * dissipation;
+	x_out[AT_POS(position)] = max(x_out[AT_POS(position)], 0.0f);
+}
+
+inline Vector lerp_vector(Vector s, Vector e, float t)
+{
+	return s+(e-s)*t;
+}
+
+inline Vector blerp_vector(Vector c00, Vector c10, Vector c01, Vector c11, float tx, float ty){
+	return lerp_vector(lerp_vector(c00, c10, tx), lerp_vector(c01, c11, tx), ty);
+}
+
+inline Vector bilinear_interpolation_vector(const GlobalVectorField field, const Vector position)
+{
+	const int x = max((int)floor(position.x), 0);
+	const int y = max((int)floor(position.y), 0);
+	const int x1 = min(x, SIZE - 1);
+	const int x2 = min(x + 1, SIZE - 1);
+	const int y1 = min(y, SIZE - 1);
+	const int y2 = min(y + 1, SIZE - 1);
+
+	return blerp_vector(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], position.x, position.y);
+}
+
+kernel void advect_vector(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const float dx_reversed, const float time_step, const Vector dissipation)
+{
+	const Point position = getPosition();
+
+	const Vector old_position = time_step * dx_reversed * u[AT_POS(position)];
+	Vector vec_pos = {position.x, position.y};
+	vec_pos -= old_position;
+
+	x_out[AT_POS(position)] += bilinear_interpolation_vector(x, vec_pos) * dissipation;
 }
 
 kernel void vector_jacobi_iteration(const GlobalVectorField x, const GlobalVectorField b, GlobalVectorField x_out, const float alpha, const float beta_reciprocal)
@@ -130,4 +163,22 @@ kernel void scalar_boundary_condition(GlobalScalarField field, const Point offse
 	const Point position_offset = position + offset;
 
 	field[AT_POS(position)] = field[AT_POS(position_offset)];
+}
+
+kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, const Vector force, const float impulse_range, const float dt)
+{
+	const Point position = getPosition();
+
+	int dist_from_impulse_squared = pown((float)(position.x - impulse_position.x), 2) + pown((float)(position.y - impulse_position.y), 2);
+	
+	w[AT_POS(position)] += force * dt * dist_from_impulse_squared / pown(impulse_range, 2);
+}
+
+kernel void add_dye(GlobalScalarField dye, const Point impulse_position, const Scalar dye_change, const float impulse_range, const float dt)
+{
+	const Point position = getPosition();
+
+	int dist_from_impulse_squared = pown((float)(position.x - impulse_position.x), 2) + pown((float)(position.y - impulse_position.y), 2);
+
+	dye[AT_POS(position)] += dye_change * dt * dist_from_impulse_squared / pown(impulse_range, 2);
 }

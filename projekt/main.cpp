@@ -24,19 +24,19 @@ auto load_program(const cl::Context& context, const size_t size)
 	return cl::Program(context, kernel_sources);
 }
 
-void ui_main(Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui, cl_uint dim)
+void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{1040, 1040, dim, to_ui, from_ui};
+	MainWindow window{670, 670, dim, to_ui, from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
 
 int main()
 {
-	auto to_ui = Channel<VectorField>::make();
-	auto from_ui = Channel<VectorField>::make();
-	cl_uint dim = 1024 + 2;
+	auto to_ui = Channel<ScalarField>::make();
+	auto from_ui = Channel<ScalarField>::make();
+	cl_uint dim = 640 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
 
 	std::vector<cl::Platform> platforms;

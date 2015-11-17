@@ -26,7 +26,8 @@ class Simulation
 	cl_uint cell_count;
 	cl_uint total_cell_count;
 
-	cl::Kernel advection_kernel;
+	cl::Kernel vector_advection_kernel;
+	cl::Kernel scalar_advection_kernel;
 	cl::Kernel scalar_jacobi_kernel;
 	cl::Kernel vector_jacobi_kernel;
 	cl::Kernel divergence_kernel;
@@ -34,11 +35,14 @@ class Simulation
 	cl::Kernel subtract_gradient_p_kernel;
 	cl::Kernel vector_boundary_kernel;
 	cl::Kernel scalar_boundary_kernel;
+	cl::Kernel apply_impulse_kernel;
+	cl::Kernel add_dye_kernel;
 
-	Channel_ptr<VectorField> to_ui;
-	Channel_ptr<VectorField> from_ui;
+	Channel_ptr<ScalarField> to_ui;
+	Channel_ptr<ScalarField> from_ui;
+	
 public:
-	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui);
+	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui);
 	void update();
 private:
 	void enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const;
@@ -54,5 +58,7 @@ private:
 	void calculate_gradient_p();
 	void calculate_u();
 	void advect_dye();
+	void apply_impulse();
+	void add_dye();
 };
 #endif //SIMULATION_H

@@ -22,26 +22,17 @@ struct DestroyRenderer
 	}
 };
 
-struct DestroyTexture
-{
-	void operator()(SDL_Texture* renderer) const {
-		SDL_DestroyTexture(renderer);
-	}
-};
-
-
-
 class MainWindow
 {
 	std::unique_ptr<SDL_Window, DestroyWindow> window;
 	std::unique_ptr<SDL_Renderer, DestroyRenderer> renderer;
 	uint cells;
 	uint pixels_per_cell;
-	VectorField field;
-	Channel_ptr<VectorField> to_ui;
-	Channel_ptr<VectorField> from_ui;
+	ScalarField field;
+	Channel_ptr<ScalarField> to_ui;
+	Channel_ptr<ScalarField> from_ui;
 public:
-	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<VectorField> to_ui, Channel_ptr<VectorField> from_ui):
+	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui):
 		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
@@ -90,7 +81,7 @@ public:
 		rect.h = pixels_per_cell;
 
 		{
-			VectorField field;
+			ScalarField field;
 			if (to_ui->try_pop(field)) {
 				if (not this->field.empty()) {
 					from_ui->try_push(this->field);
@@ -103,19 +94,15 @@ public:
 		}
 		
 		if (not field.empty()) {
-			auto max_vec = *std::max_element(field.begin(), field.end(), [](const Vector& left, const Vector& right) {
-				return std::max(std::abs(left.s[0]), std::abs(left.s[1])) < std::max(std::abs(right.s[0]), std::abs(right.s[1]));
-			});
-			auto max = std::max(std::abs(max_vec.s[0]), std::abs(max_vec.s[1]));
-
 			for (uint y = 1; y < cells - 2; ++y) {
 				for (uint x = 1; x < cells - 2; ++x) {
 					rect.x = x * pixels_per_cell;
 					rect.y = y * pixels_per_cell;
-					SDL_SetRenderDrawColor(renderer, std::abs(255*field[y * cells + x].s[0]), std::abs(255*field[y * cells + x].s[1]), 0, 255);
-					//std::cout << field[y * cells + x].s[0] << " "  << field[y * cells + x].s[1] << '\n';
+					SDL_SetRenderDrawColor(renderer, std::min(std::abs(255*field[y * cells + x]), 255.0f), 0, 0, 255);
+					//std::cout << field[y * cells + x] << ' ';
 					SDL_RenderFillRect(renderer, &rect);
 				}
+				//std::cout << std::endl;
 			}
 		}
 
