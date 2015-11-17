@@ -36,7 +36,7 @@ inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const
 {
 	const int x = max((int)floor(position.x), 0);
 	const int y = max((int)floor(position.y), 0);
-	//printf("pos=(%d %d) (%f %f)\n", x, y, position.x, position.y);
+
 	const int x1 = min(x, SIZE - 2);
 	const int x2 = min(x + 1, SIZE - 1);
 	const int y1 = min(y, SIZE - 2);
@@ -52,9 +52,8 @@ kernel void advect_scalar(const GlobalScalarField x, const GlobalVectorField u, 
 	const Vector old_position = time_step * dx_reversed * u[AT_POS(position)];
 	Vector vec_pos = {position.x, position.y};
 	vec_pos -= old_position;
-	
+
 	x_out[AT_POS(position)] = bilinear_interpolation_scalar(x, vec_pos) * dissipation;
-	//printf("%f\n", x_out[AT_POS(position)]);
 }
 
 inline Vector lerp_vector(Vector s, Vector e, float t)
@@ -169,7 +168,7 @@ kernel void scalar_boundary_condition(GlobalScalarField field, const Point offse
 kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, const Vector force, const float impulse_range, const float dt)
 {
 	const Point position = getPosition();
-	const Vector grav = {0, 1};
+	const Vector grav = {0, 0};
 	int dist_from_impulse_squared = pown((float)(position.x - impulse_position.x), 2) + pown((float)(position.y - impulse_position.y), 2);
 	
 	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2)) + grav;
