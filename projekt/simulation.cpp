@@ -19,6 +19,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	scalar_boundary_kernel(program, "scalar_boundary_condition"),
 	apply_impulse_kernel(program, "apply_impulse"),
 	add_dye_kernel(program, "add_dye"),
+	dye_boundary_conditions_kernel(program, "apply_dye_boundary_conditions"),
 	to_ui(to_ui),
 	from_ui(from_ui)
 {
@@ -35,26 +36,26 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
-	const cl_float time_step = .0001;
-	const cl_float dx = 1000;
+	const cl_float time_step = 1;
+	const cl_float dx = 1;
 	const cl_float dx_reciprocal = 1 / dx;
 	const cl_float halved_dx_reciprocal = dx_reciprocal * 0.5;
-	const auto dissipation = Vector{0.99, 0.99};
-	const cl_float ni = 1.13e-6;
-
+	const auto velocity_dissipation = Vector{0.95, 0.95};
+	const auto dye_dissipation = Vector{0.999, 0.999};
+	const cl_float ni = 1.13e-9;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, w);
 	vector_advection_kernel.setArg(3, dx_reciprocal);
 	vector_advection_kernel.setArg(4, time_step);
-	vector_advection_kernel.setArg(5, dissipation);
+	vector_advection_kernel.setArg(5, velocity_dissipation);
 	
 	scalar_advection_kernel.setArg(0, dye);
 	scalar_advection_kernel.setArg(1, u);
 	scalar_advection_kernel.setArg(2, temporary_p);
 	scalar_advection_kernel.setArg(3, dx_reciprocal);
 	scalar_advection_kernel.setArg(4, time_step);
-	scalar_advection_kernel.setArg(5, dissipation.s[0]);
+	scalar_advection_kernel.setArg(5, dye_dissipation.s[0]);
 	
 	divergence_kernel.setArg(0, w);
 	divergence_kernel.setArg(1, divergence_w);
@@ -127,16 +128,18 @@ void Simulation::enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kerne
 
 void Simulation::calculate_advection()
 {
-	vector_advection_kernel.setArg(0, u);
+	vector_advection_kernel.setArg(0, w);
 	vector_advection_kernel.setArg(1, u);
-	vector_advection_kernel.setArg(2, w);
+	vector_advection_kernel.setArg(2, temporary_w);
 	enqueueInnerKernel(cmd_queue, vector_advection_kernel);
+	cmd_queue.finish();
+	std::swap(temporary_w, w);
 }
 
 void Simulation::calculate_diffusion()
 {
-	zero_fill_vector_field(w);
-	vector_jacobi_kernel.setArg(1, u);
+	//zero_fill_vector_field(w);
+	vector_jacobi_kernel.setArg(1, w);
 	cmd_queue.finish();
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
@@ -185,6 +188,7 @@ void Simulation::calculate_p()
 		cmd_queue.finish();
 
 		scalar_jacobi_kernel.setArg(0, p);
+		scalar_jacobi_kernel.setArg(1, divergence_w);
 		scalar_jacobi_kernel.setArg(2, temporary_p);
 		enqueueInnerKernel(cmd_queue, scalar_jacobi_kernel);
 		cmd_queue.finish();
@@ -222,6 +226,7 @@ void Simulation::calculate_u()
 
 void Simulation::advect_dye()
 {
+	cmd_queue.finish();
 	scalar_advection_kernel.setArg(0, dye);
 	scalar_advection_kernel.setArg(1, u);
 	scalar_advection_kernel.setArg(2, temporary_p);
@@ -236,33 +241,82 @@ void Simulation::apply_impulse()
 	Point center{cell_count/2, cell_count/2};
 	apply_impulse_kernel.setArg(0, w);
 	apply_impulse_kernel.setArg(1, center);
-	apply_impulse_kernel.setArg(2, Vector{-0.00001, -0.00001});
-	apply_impulse_kernel.setArg(3, cl_float{1000});
-	cmd_queue.enqueueNDRangeKernel(apply_impulse_kernel, cl::NDRange{center.s[0], center.s[1]}, cl::NDRange{32, 32});
-	//enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
-	cmd_queue.enqueueBarrierWithWaitList();
+	apply_impulse_kernel.setArg(2, Vector{255, 0});
+	apply_impulse_kernel.setArg(3, cl_float{4});
+	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
 void Simulation::add_dye()
 {
+	//Point center{cell_count/2, cell_count/2};
 	Point center{cell_count/2, cell_count/2};
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, center);
-	add_dye_kernel.setArg(2, Scalar{0.1});
-	add_dye_kernel.setArg(3, cl_float{1000});
-	cmd_queue.enqueueNDRangeKernel(add_dye_kernel, cl::NDRange{center.s[0], center.s[1]}, cl::NDRange{32, 32});
-	cmd_queue.enqueueBarrierWithWaitList();
+	add_dye_kernel.setArg(2, Scalar{1});
+	add_dye_kernel.setArg(3, cl_float{60});
+	enqueueInnerKernel(cmd_queue, add_dye_kernel);
+}
+
+#include <iostream>
+
+void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
+{
+	VectorField vec;
+	vec.resize(cell_count*cell_count, Vector{1, 1});
+	cmd_queue.finish();
+	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
+	cmd_queue.finish();
+	for (uint x = 1; x < cell_count - 2; ++x) {
+		for (uint y = 1; y < cell_count - 2; ++y) {
+			std::cout << "(" << vec[y * cell_count + x].s[0] << ", " << vec[y * cell_count + x].s[1] << ") ";
+		}
+		std::cout << std::endl;
+	}
+}
+
+void print_scalar(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
+{
+	ScalarField vec;
+	vec.resize(cell_count*cell_count, Scalar{1});
+	cmd_queue.finish();
+	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
+	cmd_queue.finish();
+	for (uint x = 1; x < cell_count - 2; ++x) {
+		for (uint y = 1; y < cell_count - 2; ++y) {
+			std::cout << vec[y * cell_count + x] << " ";
+		}
+		std::cout << std::endl;
+	}
+}
+
+void Simulation::apply_dye_boundary_conditions()
+{
+	dye_boundary_conditions_kernel.setArg(0, dye);
+	enqueueBoundaryKernel(cmd_queue, dye_boundary_conditions_kernel);
+	cmd_queue.finish();
+	//print_scalar(cmd_queue, dye, cell_count);
 }
 
 void Simulation::update()
 {
-	static int i = -20;
 	cmd_queue.finish();
-	calculate_diffusion();
-	calculate_advection();
-	if (i < -17) {
+
+	static bool i = 0;
+	if (i % 20 == 0) {
 		apply_impulse();
 	}
+
+	apply_vector_boundary_conditions(w);
+
+	calculate_advection();
+	
+
+	apply_vector_boundary_conditions(w);
+
+	advect_dye();
+	
+	apply_dye_boundary_conditions();
+	calculate_diffusion();
 	apply_vector_boundary_conditions(w);
 
 	calculate_divergence_w();
@@ -270,18 +324,20 @@ void Simulation::update()
 
 	calculate_p();
 	calculate_gradient_p();
+	//print_vector(cmd_queue, w, cell_count);
 
 	apply_vector_boundary_conditions(gradient_p);
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
-	
-	advect_dye();
-	if (i < -17) {
+	if (i % 20 == 0) {
 		add_dye();
+		std::cout << "adding dye" << std::endl;
+		apply_dye_boundary_conditions();
 	}
 	++i;
 	ScalarField output_buffer;
+	
 	if (not from_ui->try_pop(output_buffer)) {
 		output_buffer.resize(total_cell_count);
 	}

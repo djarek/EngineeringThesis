@@ -94,11 +94,11 @@ public:
 		}
 		
 		if (not field.empty()) {
-			for (uint y = 1; y < cells - 2; ++y) {
-				for (uint x = 1; x < cells - 2; ++x) {
+			for (uint x = 1; x < cells - 2; ++x) {
+				for (uint y = 1; y < cells - 2; ++y) {
 					rect.x = x * pixels_per_cell;
 					rect.y = y * pixels_per_cell;
-					SDL_SetRenderDrawColor(renderer, std::min(std::abs(255*field[y * cells + x]), 255.0f), 0, 0, 255);
+					SDL_SetRenderDrawColor(renderer, std::min(255*field[y * cells + x], 255.0f), 0, 0, 255);
 					//std::cout << field[y * cells + x] << ' ';
 					SDL_RenderFillRect(renderer, &rect);
 				}

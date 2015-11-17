@@ -36,7 +36,7 @@ int main()
 {
 	auto to_ui = Channel<ScalarField>::make();
 	auto from_ui = Channel<ScalarField>::make();
-	cl_uint dim = 640 + 2;
+	cl_uint dim = 512 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
@@ -61,7 +61,6 @@ int main()
 	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
-		std::cout << "frame" << std::endl;
 	}
 
 	ui_thread.join();

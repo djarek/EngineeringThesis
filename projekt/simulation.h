@@ -37,6 +37,7 @@ class Simulation
 	cl::Kernel scalar_boundary_kernel;
 	cl::Kernel apply_impulse_kernel;
 	cl::Kernel add_dye_kernel;
+	cl::Kernel dye_boundary_conditions_kernel;
 
 	Channel_ptr<ScalarField> to_ui;
 	Channel_ptr<ScalarField> from_ui;
@@ -60,5 +61,6 @@ private:
 	void advect_dye();
 	void apply_impulse();
 	void add_dye();
+	void apply_dye_boundary_conditions();
 };
 #endif //SIMULATION_H
