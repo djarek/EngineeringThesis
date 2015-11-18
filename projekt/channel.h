@@ -9,7 +9,7 @@ class Channel
 {
 	std::mutex mutex;
 	T item;
-	bool empty{false};
+	bool empty{true};
 public:
 	static std::shared_ptr<Channel> make() {
 		return std::make_shared<Channel>();

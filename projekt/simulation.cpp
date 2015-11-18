@@ -37,30 +37,30 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const cl_float time_step = 1;
-	const cl_float dx = 50;
+	const cl_float dx = 5;
 	const cl_float dx_reciprocal = 1 / dx;
 	const cl_float halved_dx_reciprocal = dx_reciprocal * 0.5;
-	const auto velocity_dissipation = Vector{0.99, 0.99};
+	const auto velocity_dissipation = Vector{0.999, 0.999};
 	const cl_float dye_dissipation = 0.9999;
-	const cl_float ni = 1.13e-4;
+	const cl_float ni = 1.13e-6;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, w);
 	vector_advection_kernel.setArg(3, dx_reciprocal);
 	vector_advection_kernel.setArg(4, time_step);
 	vector_advection_kernel.setArg(5, velocity_dissipation);
-	
+
 	scalar_advection_kernel.setArg(0, dye);
 	scalar_advection_kernel.setArg(1, u);
 	scalar_advection_kernel.setArg(2, temporary_p);
 	scalar_advection_kernel.setArg(3, dx_reciprocal);
 	scalar_advection_kernel.setArg(4, time_step);
 	scalar_advection_kernel.setArg(5, dye_dissipation);
-	
+
 	divergence_kernel.setArg(0, w);
 	divergence_kernel.setArg(1, divergence_w);
 	divergence_kernel.setArg(2, halved_dx_reciprocal);
-	
+
 	scalar_jacobi_kernel.setArg(0, p);
 	scalar_jacobi_kernel.setArg(1, divergence_w);
 	scalar_jacobi_kernel.setArg(2, temporary_p);
@@ -83,7 +83,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	subtract_gradient_p_kernel.setArg(2, u);
 
 	apply_impulse_kernel.setArg(4, time_step);
-	
+
 	add_dye_kernel.setArg(4, time_step);
 	std::srand(42);
 }
@@ -115,10 +115,11 @@ void Simulation::enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kerne
 {
 	// Subtract 2 from the range in each dimension to account for 2 boundary cells
 	// top & bottom or left & right cells
-	const auto range  = cl::NDRange{32, 32};
-	
-	for (uint y = 1; y < cell_count - 2; y += 32) {
-		for (uint x = 1; x < cell_count - 2; x += 32) {
+    const auto workgroup_size = 256;
+	const auto range  = cl::NDRange{workgroup_size, workgroup_size};
+
+	for (uint y = 1; y < cell_count - 2; y += workgroup_size) {
+		for (uint x = 1; x < cell_count - 2; x += workgroup_size) {
 			cmd_queue.enqueueNDRangeKernel(kernel, cl::NDRange{x, y}, range, local_range);
 		}
 	}
@@ -132,14 +133,13 @@ void Simulation::calculate_advection()
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, temporary_w);
 	enqueueInnerKernel(cmd_queue, vector_advection_kernel);
-//	cmd_queue.finish();
+
 	std::swap(temporary_w, w);
 }
 
 void Simulation::calculate_diffusion()
 {
 	vector_jacobi_kernel.setArg(1, w);
-	cmd_queue.finish();
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
 		apply_vector_boundary_conditions(w);
@@ -148,7 +148,6 @@ void Simulation::calculate_diffusion()
 		vector_jacobi_kernel.setArg(2, temporary_w);
 		enqueueInnerKernel(cmd_queue, vector_jacobi_kernel);
 
-		cmd_queue.finish();
 		using std::swap;
 		swap(w, temporary_w);
 	}
@@ -176,17 +175,14 @@ void Simulation::calculate_p()
 {
 	//Zero-out p to improve convergence rate
 	zero_fill_scalar_field(p);
-	cmd_queue.finish();
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
 		apply_scalar_boundary_conditions(p);
-		cmd_queue.finish();
 
 		scalar_jacobi_kernel.setArg(0, p);
 		scalar_jacobi_kernel.setArg(1, divergence_w);
 		scalar_jacobi_kernel.setArg(2, temporary_p);
 		enqueueInnerKernel(cmd_queue, scalar_jacobi_kernel);
-		cmd_queue.finish();
 
 		using std::swap;
 		swap(p, temporary_p);
@@ -220,13 +216,12 @@ void Simulation::calculate_u()
 
 void Simulation::advect_dye()
 {
-	cmd_queue.finish();
 	scalar_advection_kernel.setArg(0, dye);
 	scalar_advection_kernel.setArg(1, u);
 	scalar_advection_kernel.setArg(2, temporary_p);
 	zero_fill_scalar_field(temporary_p);
 	enqueueInnerKernel(cmd_queue, scalar_advection_kernel);
-	cmd_queue.finish();
+
 	std::swap(dye, temporary_p);
 }
 
@@ -287,7 +282,6 @@ void Simulation::apply_dye_boundary_conditions()
 {
 	dye_boundary_conditions_kernel.setArg(0, dye);
 	enqueueBoundaryKernel(cmd_queue, dye_boundary_conditions_kernel);
-	cmd_queue.finish();
 }
 
 void Simulation::update()
@@ -299,12 +293,12 @@ void Simulation::update()
 	apply_vector_boundary_conditions(w);
 
 	calculate_advection();
-	
+
 
 	apply_vector_boundary_conditions(w);
 
 	advect_dye();
-	
+
 	apply_dye_boundary_conditions();
 	calculate_diffusion();
 	apply_vector_boundary_conditions(w);
@@ -326,12 +320,14 @@ void Simulation::update()
 	}
 	++i;
 	ScalarField output_buffer;
-	
+
 	if (not from_ui->try_pop(output_buffer)) {
 		output_buffer.resize(total_cell_count);
 	}
+
+	//cmd_queue.finish();
 	cl::copy(cmd_queue, dye, output_buffer.begin(), output_buffer.end());
-	cmd_queue.finish();
+
 	to_ui->try_push(output_buffer);
 	std::cout << i << std::endl;
 }
