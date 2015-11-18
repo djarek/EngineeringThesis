@@ -6,7 +6,6 @@
 #include "channel.h"
 #include "typedefs.h"
 #include <atomic>
-#include <bits/stl_algo.h>
 
 struct DestroyWindow
 {
@@ -46,7 +45,7 @@ public:
 		boundary_rect.x = boundary_rect.y = 0;
 		field.resize(cells * cells);
 	}
-	
+
 	void event_loop() {
 		SDL_Event event;
 		bool quit = false;
@@ -77,7 +76,7 @@ public:
 			//SDL_Delay(33);
 		}
 	}
-	
+
 	void paint() {
 		auto renderer = this->renderer.get();
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -97,10 +96,10 @@ public:
 				if (not field.empty()) {
 					this->field = std::move(field);
 				}
-				
+
 			}
 		}
-		
+
 		for (uint x = 1; x < cells - 2; ++x) {
 			for (uint y = 1; y < cells - 2; ++y) {
 				rect.x = x * pixels_per_cell;
@@ -109,9 +108,9 @@ public:
 				if (field_val < 0.0) {
 					SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
 				} else {
-					SDL_SetRenderDrawColor(renderer, std::min(255 * field[y * cells + x], 255.0), 0, 0, 255);
+					SDL_SetRenderDrawColor(renderer, std::min(255 * field[y * cells + x], 255.0f), 0, 0, 255);
 				}
-				
+
 				SDL_RenderFillRect(renderer, &rect);
 			}
 		}

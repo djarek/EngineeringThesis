@@ -1,7 +1,7 @@
 
-typedef double2 Vector;
+typedef float2 Vector;
 typedef Vector VectorField;
-typedef double Scalar;
+typedef float Scalar;
 typedef int2 Point;
 
 #define GlobalVectorField global Vector*
@@ -23,18 +23,18 @@ inline Point getPosition()
 	return point;
 }
 
-inline Scalar lerp_scalar(Scalar s, Scalar e, double t)
+inline Scalar lerp_scalar(Scalar s, Scalar e, Scalar t)
 {
 	return s+(e-s)*t;
 }
 
-inline Scalar blerp_scalar(Scalar c00, Scalar c10, Scalar c01, Scalar c11, double tx, double ty){
+inline Scalar blerp_scalar(Scalar c00, Scalar c10, Scalar c01, Scalar c11, Scalar tx, Scalar ty){
 	return lerp_scalar(lerp_scalar(c00, c10, tx), lerp_scalar(c01, c11, tx), ty);
 }
 
 inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const Vector position)
 {
-	const long long x = max((int)floor(position.x), 0);
+	const int x = max((int)floor(position.x), 0);
 	const int y = max((int)floor(position.y), 0);
 
 	const int x1 = min(x, SIZE - 2);
@@ -86,8 +86,6 @@ kernel void advect_vector(const GlobalVectorField x, const GlobalVectorField u, 
 	vec_pos -= old_position;
 
 	x_out[AT_POS(position)] = bilinear_interpolation_vector(x, vec_pos) * dissipation;
-	if (x_out[AT_POS(position)].y == INFINITY || x_out[AT_POS(position)].x == INFINITY)
-		printf("lol");
 }
 
 kernel void vector_jacobi_iteration(const GlobalVectorField x, const GlobalVectorField b, GlobalVectorField x_out, const Scalar alpha, const Scalar beta_reciprocal)
@@ -119,14 +117,14 @@ kernel void scalar_jacobi_iteration(const GlobalScalarField x, const GlobalScala
 kernel void divergence(const GlobalVectorField w, GlobalScalarField divergence_w_out, const Scalar halved_reverse_dx)
 {
 	const Point position = getPosition();
-	
+
 	const Vector w_left = w[AT(position.x - 1, position.y)];
 	const Vector w_right = w[AT(position.x + 1, position.y)];
 	const Vector w_top = w[AT(position.x, position.y + 1)];
 	const Vector w_bottom = w[AT(position.x, position.y - 1)];
 
 	divergence_w_out[AT_POS(position)] = halved_reverse_dx * (w_right.x - w_left.x + w_top.y - w_bottom.y);
-	
+
 }
 
 kernel void gradient(const GlobalScalarField p, GlobalVectorField gradient_p_out, const Scalar halved_reverse_dx)
@@ -172,7 +170,7 @@ kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, con
 	const Point position = getPosition();
 
 	int dist_from_impulse_squared = pown((Scalar)(position.x - impulse_position.x), 2) + pown((Scalar)(position.y - impulse_position.y), 2);
-	
+
 	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2));
 }
 

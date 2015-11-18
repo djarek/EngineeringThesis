@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 400;
+constexpr auto jacobi_iterations = 300;
 
 Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
@@ -38,11 +38,11 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const Scalar time_step = 1;
-	const Scalar dx = 2;
+	const Scalar dx = 5;
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
-	const Scalar dye_dissipation = 0.999;
+	const Scalar dye_dissipation = 1;
 	const Scalar ni = 1.13e-6;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
@@ -172,6 +172,7 @@ void Simulation::zero_fill_scalar_field(cl::Buffer& field)
 
 void Simulation::calculate_p()
 {
+    zero_fill_scalar_field(p);
 	scalar_jacobi_kernel.setArg(1, divergence_w);
 
 	for (int i = 0; i < jacobi_iterations; ++i) {
@@ -225,7 +226,7 @@ void Simulation::apply_impulse()
 {
 	Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
 
-	Vector force{10.0 * (1.0 * std::rand() / RAND_MAX - 0.5), 10.0 * (1.0 * std::rand() / RAND_MAX - 0.5)};
+	Vector force{50.0 * (1.0 * std::rand() / RAND_MAX - 0.5), 50.0 * (1.0 * std::rand() / RAND_MAX - 0.5)};
 	apply_impulse_kernel.setArg(0, w);
 	apply_impulse_kernel.setArg(1, center);
 	apply_impulse_kernel.setArg(2, force);
@@ -238,7 +239,7 @@ void Simulation::add_dye()
 	Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, center);
-	add_dye_kernel.setArg(2, Scalar{0.5});
+	add_dye_kernel.setArg(2, Scalar{1});
 	add_dye_kernel.setArg(3, Scalar{16});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
 }

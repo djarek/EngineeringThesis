@@ -36,19 +36,19 @@ int main()
 {
 	auto to_ui = Channel<ScalarField>::make();
 	auto from_ui = Channel<ScalarField>::make();
-	cl_uint dim = 256 + 2;
+	cl_uint dim = 512 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
 	std::vector<cl::Device> devices;
-	
+
 	cl::Platform::get(&platforms);
-	platforms[0].getDevices(CL_DEVICE_TYPE_CPU, &devices);
-	
+	platforms[0].getDevices(CL_DEVICE_TYPE_GPU, &devices);
+
 	cl::Context context{devices};
 	cl::CommandQueue cmd_queue{context, devices[0]};
 
-	
+
 
 	auto program = load_program(context, dim);
 	try {

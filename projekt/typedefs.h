@@ -3,8 +3,8 @@
 
 #include <CL/opencl.h>
 
-using Scalar = cl_double;
-using Vector = cl_double2;
+using Scalar = cl_float;
+using Vector = cl_float2;
 using Point  = cl_int2;
 using Offset = Point;
 using ScalarField = std::vector<Scalar>;
