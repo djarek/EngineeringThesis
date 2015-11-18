@@ -3,13 +3,13 @@
 
 #include <memory>
 #include <mutex>
+#include <deque>
 
 template<typename T>
 class Channel
 {
 	std::mutex mutex;
-	T item;
-	bool empty{true};
+	std::deque<T> items;
 public:
 	static std::shared_ptr<Channel> make() {
 		return std::make_shared<Channel>();
@@ -17,20 +17,15 @@ public:
 
 	bool try_push(T& item) {
 		std::lock_guard<std::mutex> guard{mutex};
-		if (empty) {
-			this->item = std::move(item);
-			empty = false;
-			return true;
-		} else {
-			return false;
-		}
+		items.push_back(std::move(item));
+		return true;
 	}
 
 	bool try_pop(T& item) {
 		std::lock_guard<std::mutex> guard{mutex};
-		if (not empty) {
-			item = std::move(this->item);
-			empty = true;
+		if (not items.empty()) {
+			item = std::move(items.front());
+			items.pop_front();
 			return true;
 		} else {
 			return false;

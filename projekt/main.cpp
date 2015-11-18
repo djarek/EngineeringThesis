@@ -27,7 +27,7 @@ auto load_program(const cl::Context& context, const size_t size)
 void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{1040, 768, dim, to_ui, from_ui};
+	MainWindow window{640, 640, dim, to_ui, from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
@@ -58,7 +58,7 @@ int main()
 		throw;
 	}
 
-	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui};
+	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui, 256};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
 	}
