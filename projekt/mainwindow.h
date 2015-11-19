@@ -31,14 +31,17 @@ class MainWindow
 	ScalarField field;
 	Channel_ptr<ScalarField> to_ui;
 	Channel_ptr<ScalarField> from_ui;
+	Channel_ptr<Event> events_from_ui;
+	bool left_mouse_button_pressed {false};
 public:
-	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui):
+	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui):
 		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN/* | SDL_WINDOW_FULLSCREEN*/)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
 		to_ui(to_ui),
-		from_ui(from_ui)
+		from_ui(from_ui),
+		events_from_ui(events_from_ui)
 	{
 		boundary_rect.w = pixels_per_cell * cells;
 		boundary_rect.h = pixels_per_cell * cells;
@@ -46,7 +49,45 @@ public:
 		field.resize(cells * cells);
 	}
 
-	void event_loop() {
+	void onMouseButtonUp(const SDL_Event& event)
+	{
+		if (event.button.button == SDL_BUTTON_LEFT) {
+			left_mouse_button_pressed = false;
+		}
+	}
+	
+	void onMouseButtonDown(const SDL_Event& event)
+	{
+		if (event.button.button == SDL_BUTTON_LEFT) {
+			left_mouse_button_pressed = true;
+		} else if (event.button.button == SDL_BUTTON_RIGHT) {
+			Event simulation_event;
+			simulation_event.point = Point{1.0 * event.button.x / pixels_per_cell, 1.0 * event.button.y / pixels_per_cell};
+			simulation_event.type = Event::Type::ADD_DYE;
+			simulation_event.value.as_scalar = Scalar{1};
+			events_from_ui->try_push(simulation_event);
+		}
+	}
+	
+	void onMouseMove(const SDL_Event& event)
+	{
+		if (left_mouse_button_pressed) {
+			Event simulation_event;
+			simulation_event.point = Point{1.0 * event.motion.x, 1.0 * event.motion.y / pixels_per_cell};
+			simulation_event.value.as_vector = Vector{1.0f * event.motion.xrel / pixels_per_cell, 1.0f * event.motion.yrel / pixels_per_cell};
+			simulation_event.type = Event::Type::APPLY_FORCE;
+			std::cout << "--\n";
+			std::cout << event.motion.x << ", " << event.motion.y << std::endl;
+			std::cout << simulation_event.point.s[0] << ", " << simulation_event.point.s[1] << std::endl;
+			std::cout << "--\n";
+			//std::cout << simulation_event.value.as_vector.s[0] << ", "<< simulation_event.value.as_vector.s[1] << std::endl;
+			events_from_ui->try_push(simulation_event);
+			
+		}
+	}
+	
+	void event_loop()
+	{
 		SDL_Event event;
 		bool quit = false;
 		extern std::atomic<bool> running;
@@ -61,11 +102,13 @@ public:
 					paint();
 					continue;
 				case SDL_MOUSEMOTION:
-					//onMouseMove(event);
+					onMouseMove(event);
 					break;
 				case SDL_MOUSEBUTTONUP:
+					onMouseButtonUp(event);
+					break;
 				case SDL_MOUSEBUTTONDOWN:
-					//onMouseButtonClick(event);
+					onMouseButtonDown(event);
 					break;
 				default:
 					break;
@@ -77,7 +120,8 @@ public:
 		}
 	}
 
-	void paint() {
+	void paint()
+	{
 		auto renderer = this->renderer.get();
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
 		SDL_RenderClear(renderer);

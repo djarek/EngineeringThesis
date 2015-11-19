@@ -2,9 +2,9 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 300;
+constexpr auto jacobi_iterations = 200;
 
-Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint workgroup_size):
+Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
 	cell_count(cell_count),
 	total_cell_count(cell_count * cell_count),
@@ -22,6 +22,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	dye_boundary_conditions_kernel(program, "apply_dye_boundary_conditions"),
 	to_ui(to_ui),
 	from_ui(from_ui),
+	events_from_ui(events_from_ui),
 	zero_vector_buffer(total_cell_count, Vector{0.0, 0.0}),
 	workgroup_size(workgroup_size)
 {
@@ -42,7 +43,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
-	const Scalar dye_dissipation = 1;
+	const Scalar dye_dissipation = 0.99999;
 	const Scalar ni = 1.13e-6;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
@@ -222,32 +223,32 @@ void Simulation::advect_dye()
 	std::swap(dye, temporary_p);
 }
 
-void Simulation::apply_impulse()
+void Simulation::apply_impulse(const Event& simulation_event)
 {
-	Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
-
-	Vector force{50.0 * (1.0 * std::rand() / RAND_MAX - 0.5), 50.0 * (1.0 * std::rand() / RAND_MAX - 0.5)};
+	//Vector force{50.0 * (1.0 * std::rand() / RAND_MAX - 0.5), 50.0 * (1.0 * std::rand() / RAND_MAX - 0.5)};
 	apply_impulse_kernel.setArg(0, w);
-	apply_impulse_kernel.setArg(1, center);
-	apply_impulse_kernel.setArg(2, force);
-	apply_impulse_kernel.setArg(3, Scalar{8});
+	apply_impulse_kernel.setArg(1, simulation_event.point);
+	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
+	
+	apply_impulse_kernel.setArg(3, Scalar{4});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
-void Simulation::add_dye()
+void Simulation::add_dye(const Event& simulation_event)
 {
-	Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
+	//Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
 	add_dye_kernel.setArg(0, dye);
-	add_dye_kernel.setArg(1, center);
-	add_dye_kernel.setArg(2, Scalar{1});
+	add_dye_kernel.setArg(1, simulation_event.point);
+	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
 	add_dye_kernel.setArg(3, Scalar{16});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
+	apply_dye_boundary_conditions();
 }
 
 void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
 {
 	VectorField vec;
-	vec.resize(cell_count*cell_count, Vector{1, 1});
+	vec.resize(cell_count * cell_count, Vector{1, 1});
 	cmd_queue.finish();
 	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
 	cmd_queue.finish();
@@ -262,7 +263,7 @@ void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cel
 void print_scalar(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
 {
 	ScalarField vec;
-	vec.resize(cell_count*cell_count, Scalar{1});
+	vec.resize(cell_count * cell_count, Scalar{1});
 	cmd_queue.finish();
 	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
 	cmd_queue.finish();
@@ -282,8 +283,18 @@ void Simulation::apply_dye_boundary_conditions()
 
 void Simulation::update()
 {
-	static int i = 0;
-	apply_impulse();
+	static thread_local int i = 0;
+
+	Event simulation_event;
+	if (events_from_ui->try_pop(simulation_event)) {
+		cmd_queue.finish();
+		if (simulation_event.type == Event::Type::ADD_DYE) {
+			add_dye(simulation_event);
+		} else if (simulation_event.type == Event::Type::APPLY_FORCE) {
+			std::cout << "Apply impulse\n";
+			apply_impulse(simulation_event);
+		} 
+	}
 
 
 	apply_vector_boundary_conditions(w);
@@ -309,12 +320,8 @@ void Simulation::update()
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
-	if (i % 16 == 0) {
-		add_dye();
-		std::cout << "adding dye" << std::endl;
-		apply_dye_boundary_conditions();
-	}
 	++i;
+
 	ScalarField output_buffer;
 
 	if (not from_ui->try_pop(output_buffer)) {

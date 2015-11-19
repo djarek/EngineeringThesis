@@ -42,12 +42,13 @@ class Simulation
 
 	Channel_ptr<ScalarField> to_ui;
 	Channel_ptr<ScalarField> from_ui;
+	Channel_ptr<Event> events_from_ui;
 
 	VectorField zero_vector_buffer;
 	
 	const cl_uint workgroup_size;
 public:
-	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui,  cl_uint workgroup_size);
+	Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size);
 	void update();
 private:
 	void enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const;
@@ -63,8 +64,8 @@ private:
 	void calculate_gradient_p();
 	void calculate_u();
 	void advect_dye();
-	void apply_impulse();
-	void add_dye();
+	void apply_impulse(const Event& simulation_event);
+	void add_dye(const Event& simulation_event);
 	void apply_dye_boundary_conditions();
 };
 #endif //SIMULATION_H

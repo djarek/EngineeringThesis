@@ -24,10 +24,10 @@ auto load_program(const cl::Context& context, const size_t size)
 	return cl::Program(context, kernel_sources);
 }
 
-void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, cl_uint dim)
+void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{640, 640, dim, to_ui, from_ui};
+	MainWindow window{258, 258, dim, to_ui, from_ui, events_from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
@@ -36,19 +36,18 @@ int main()
 {
 	auto to_ui = Channel<ScalarField>::make();
 	auto from_ui = Channel<ScalarField>::make();
-	cl_uint dim = 512 + 2;
-	std::thread ui_thread{ui_main, to_ui, from_ui, dim};
+	auto events_from_ui = Channel<Event>::make();
+	cl_uint dim = 256 + 2;
+	std::thread ui_thread{ui_main, to_ui, from_ui, events_from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
 	std::vector<cl::Device> devices;
 
 	cl::Platform::get(&platforms);
-	platforms[0].getDevices(CL_DEVICE_TYPE_GPU, &devices);
+	platforms[0].getDevices(CL_DEVICE_TYPE_CPU, &devices);
 
 	cl::Context context{devices};
 	cl::CommandQueue cmd_queue{context, devices[0]};
-
-
 
 	auto program = load_program(context, dim);
 	try {
@@ -58,7 +57,7 @@ int main()
 		throw;
 	}
 
-	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui, 256};
+	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui, events_from_ui, 256};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
 	}
