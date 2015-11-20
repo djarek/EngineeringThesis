@@ -44,7 +44,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
 	const Scalar dye_dissipation = 1.0;
-	const Scalar ni = 1.13e-6;
+	const Scalar ni = 1.13e-16;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, w);
@@ -94,7 +94,6 @@ const auto local_range = cl::NullRange;
 
 void Simulation::enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const
 {
-	cmd_queue.finish();
 	const cl_uint boundary_cell_count = cell_count - 2;
 	//Argument 1 is the offset, used to indicate whether we use the cell above/below/to the left/to the right
 	//to calculate the boundary value
@@ -225,7 +224,6 @@ void Simulation::advect_dye()
 
 void Simulation::apply_impulse(const Event& simulation_event)
 {
-	//Vector force{50.0 * (1.0 * std::rand() / RAND_MAX - 0.5), 50.0 * (1.0 * std::rand() / RAND_MAX - 0.5)};
 	apply_impulse_kernel.setArg(0, w);
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
@@ -236,7 +234,6 @@ void Simulation::apply_impulse(const Event& simulation_event)
 
 void Simulation::add_dye(const Event& simulation_event)
 {
-	//Point center{static_cast<cl_int>(cell_count/2), static_cast<cl_int>(cell_count/2)};
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, simulation_event.point);
 	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
@@ -282,13 +279,12 @@ void Simulation::apply_dye_boundary_conditions()
 
 void Simulation::update()
 {
-	cmd_queue.finish();
+	
 	auto events = events_from_ui->try_pop_all();
 	for (auto& simulation_event : events) {
 		if (simulation_event.type == Event::Type::ADD_DYE) {
 			add_dye(simulation_event);
 		} else if (simulation_event.type == Event::Type::APPLY_FORCE) {
-			//std::cout << "Apply impulse\n";
 			apply_impulse(simulation_event);
 		}
 	}
@@ -326,7 +322,6 @@ void Simulation::update()
 
 	cl::copy(cmd_queue, dye, output_buffer.begin(), output_buffer.end());
 
-	
 	if (dye_buffers_wait_list.empty()) {
 		to_ui->try_push(output_buffer);
 	} else {
