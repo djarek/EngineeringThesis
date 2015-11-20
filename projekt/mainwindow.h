@@ -35,7 +35,7 @@ class MainWindow
 	bool left_mouse_button_pressed {false};
 public:
 	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui):
-		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN/* | SDL_WINDOW_FULLSCREEN*/)),
+		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
@@ -74,7 +74,8 @@ public:
 		if (left_mouse_button_pressed) {
 			Event simulation_event;
 			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.motion.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.motion.y / pixels_per_cell)};
-			simulation_event.value.as_vector = Vector{1.0 * event.motion.xrel / pixels_per_cell, 1.0 * event.motion.yrel / pixels_per_cell};
+			simulation_event.value.as_vector = Vector{std::max(std::min(1.0f * event.motion.xrel / pixels_per_cell, 2.0f), -2.0f), std::max(std::min(1.0f * event.motion.yrel / pixels_per_cell, 2.0f), -2.0f)};
+			std::cout << simulation_event.value.as_vector.s[0] << ", " << simulation_event.value.as_vector.s[1] << std::endl;
 			simulation_event.type = Event::Type::APPLY_FORCE;
 			events_from_ui->try_push(simulation_event);
 		}

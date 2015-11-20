@@ -46,13 +46,13 @@ inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const
 	float y_pos;
 	
 	if (x1 != x2) {
-		x_pos = (position.x - x1)/(x2 - x1);
+		x_pos = (fabs(position.x) - x1) / (x2 - x1);
 	} else {
 		x_pos = x1;
 	}
 	
 	if (y1 != y2) {
-		y_pos = (position.y - y1)/(y2 - y1);
+		y_pos = (fabs(position.y) - y1) / (y2 - y1);
 	} else {
 		y_pos = y1;
 	}
@@ -94,13 +94,13 @@ inline Vector bilinear_interpolation_vector(const GlobalVectorField field, const
 	float y_pos;
 	
 	if (x1 != x2) {
-		x_pos = (position.x - x1)/(x2 - x1);
+		x_pos = (max(position.x, 0.0f) - x1) / (x2 - x1);
 	} else {
 		x_pos = x1;
 	}
 	
 	if (y1 != y2) {
-		y_pos = (position.y - y1)/(y2 - y1);
+		y_pos = (max(position.y, 0.0f) - y1) / (y2 - y1);
 	} else {
 		y_pos = y1;
 	}
@@ -205,6 +205,13 @@ kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, con
 	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2));
 }
 
+kernel void apply_gravity(GlobalVectorField w)
+{
+	const Point position = getPosition();
+	const Vector gravity = {0.0, 0.1};
+	w[AT_POS(position)] += gravity;
+}
+
 kernel void add_dye(GlobalScalarField dye, const Point impulse_position, const Scalar dye_change, const Scalar impulse_range, const Scalar dt)
 {
 	const Point position = getPosition();
@@ -219,4 +226,44 @@ kernel void apply_dye_boundary_conditions(GlobalScalarField dye, const Point off
 	const Point position = getPosition();
 
 	dye[AT_POS(position)] = 0.0;
+}
+
+kernel void vorticity(GlobalVectorField w, GlobalScalarField vorticity, Scalar halved_reverse_dx)
+{
+	const Point position = getPosition();
+	const int index = AT_POS(position);
+
+	const Vector w_left = w[AT(position.x - 1, position.y)];
+	const Vector w_right = w[AT(position.x + 1, position.y)];
+	const Vector w_top = w[AT(position.x, position.y + 1)];
+	const Vector w_bottom = w[AT(position.x, position.y - 1)];
+	
+	vorticity[AT_POS(position)] = halved_reverse_dx * ((w_right.y - w_left.y) - (w_top.x - w_bottom.x));
+}
+
+static constant const Scalar EPSILON = 2.4414e-4; //2^-12
+
+kernel void apply_voritcity_force(GlobalScalarField vorticity, GlobalVectorField w, GlobalVectorField w_out, Scalar halved_reverse_dx, Scalar time_step, Vector vorticity_dx_scale)
+{
+
+	const Point position = getPosition();
+	const int index = AT_POS(position);
+
+	const Scalar v_left = vorticity[AT(position.x - 1, position.y)];
+	const Scalar v_right = vorticity[AT(position.x + 1, position.y)];
+	const Scalar v_top = vorticity[AT(position.x, position.y + 1)];
+	const Scalar v_bottom = vorticity[AT(position.x, position.y - 1)];
+	
+	const Scalar v_center = vorticity[index];
+	
+	Scalar force_x = fabs(v_top) - fabs(v_bottom);
+	Scalar force_y = fabs(v_right) - fabs(v_left);
+	
+	Vector force = {force_x, force_y};
+	Scalar mag_squared = max(EPSILON, dot(force, force));
+	force *= rsqrt(mag_squared);
+	
+	force *= vorticity_dx_scale * v_center * (Vector)(1, -1);
+
+	w_out[index] += time_step * force;
 }

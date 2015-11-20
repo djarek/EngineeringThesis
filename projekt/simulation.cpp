@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 200;
+constexpr auto jacobi_iterations = 150;
 
 Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
@@ -20,6 +20,8 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_impulse_kernel(program, "apply_impulse"),
 	add_dye_kernel(program, "add_dye"),
 	dye_boundary_conditions_kernel(program, "apply_dye_boundary_conditions"),
+	vorticity_kernel(program, "vorticity"),
+	apply_vorticity_kernel(program, "apply_voritcity_force"),
 	to_ui(to_ui),
 	from_ui(from_ui),
 	events_from_ui(events_from_ui),
@@ -38,13 +40,15 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
-	const Scalar time_step = 1;
-	const Scalar dx = 5;
+	const Scalar time_step = .1;
+	const Scalar dx = .01;
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
 	const Scalar dye_dissipation = 1.0;
-	const Scalar ni = 1.13e-16;
+	const Scalar ni = 1.13e-9;
+	const Scalar vorticity_confinemnet_scale{0.35};
+	const Vector vorticity_dx_scale{vorticity_confinemnet_scale * dx, vorticity_confinemnet_scale * dx};
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, w);
@@ -87,6 +91,18 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_impulse_kernel.setArg(4, time_step);
 
 	add_dye_kernel.setArg(4, time_step);
+	
+	vorticity_kernel.setArg(0, w);
+	vorticity_kernel.setArg(1, temporary_p);
+	vorticity_kernel.setArg(2, halved_dx_reciprocal);
+	
+	apply_vorticity_kernel.setArg(0, temporary_p);
+	apply_vorticity_kernel.setArg(1, w);
+	apply_vorticity_kernel.setArg(2, temporary_w);
+	apply_vorticity_kernel.setArg(3, halved_dx_reciprocal);
+	apply_vorticity_kernel.setArg(4, time_step);
+	apply_vorticity_kernel.setArg(5, vorticity_dx_scale);
+
 	std::srand(42);
 }
 
@@ -228,7 +244,7 @@ void Simulation::apply_impulse(const Event& simulation_event)
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
 	
-	apply_impulse_kernel.setArg(3, Scalar{2});
+	apply_impulse_kernel.setArg(3, Scalar{4});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
@@ -237,7 +253,7 @@ void Simulation::add_dye(const Event& simulation_event)
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, simulation_event.point);
 	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
-	add_dye_kernel.setArg(3, Scalar{16});
+	add_dye_kernel.setArg(3, Scalar{32});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
 }
 
@@ -277,10 +293,29 @@ void Simulation::apply_dye_boundary_conditions()
 	enqueueBoundaryKernel(cmd_queue, dye_boundary_conditions_kernel);
 }
 
+void Simulation::apply_vorticity()
+{
+	vorticity_kernel.setArg(0, w);
+	vorticity_kernel.setArg(1, temporary_p);
+	enqueueInnerKernel(cmd_queue, vorticity_kernel);
+
+	apply_vorticity_kernel.setArg(0, temporary_p);
+	apply_vorticity_kernel.setArg(1, w);
+	apply_vorticity_kernel.setArg(2, temporary_w);
+
+	enqueueInnerKernel(cmd_queue, apply_vorticity_kernel);
+	using std::swap;
+	swap(w, temporary_w);
+	cmd_queue.finish();
+}
+
+
 void Simulation::update()
 {
-	
 	auto events = events_from_ui->try_pop_all();
+	if (not events.empty()) {
+		cmd_queue.finish();
+	}
 	for (auto& simulation_event : events) {
 		if (simulation_event.type == Event::Type::ADD_DYE) {
 			add_dye(simulation_event);
@@ -294,7 +329,6 @@ void Simulation::update()
 
 	calculate_advection();
 
-
 	apply_vector_boundary_conditions(w);
 
 	advect_dye();
@@ -302,14 +336,14 @@ void Simulation::update()
 	apply_dye_boundary_conditions();
 	calculate_diffusion();
 	apply_vector_boundary_conditions(w);
+	apply_vorticity();
+	apply_vector_boundary_conditions(w);
 
 	calculate_divergence_w();
 	apply_scalar_boundary_conditions(divergence_w);
 
 	calculate_p();
 	calculate_gradient_p();
-
-	apply_vector_boundary_conditions(gradient_p);
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
