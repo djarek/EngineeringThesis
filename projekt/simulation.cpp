@@ -323,6 +323,14 @@ void Simulation::update()
 			apply_impulse(simulation_event);
 		}
 	}
+	
+	for (int i = 1; i < 20; ++ i) {
+		Event imp_source;
+		imp_source.point = Point{16, i * 0.05 * cell_count};
+		imp_source.value.as_vector = Vector{15.0, 0};
+		apply_impulse(imp_source);
+	}
+	
 	apply_dye_boundary_conditions();
 
 	apply_vector_boundary_conditions(w);

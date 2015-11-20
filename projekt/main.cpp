@@ -37,7 +37,7 @@ int main()
 	auto to_ui = Channel<ScalarField>::make();
 	auto from_ui = Channel<ScalarField>::make();
 	auto events_from_ui = Channel<Event>::make();
-	cl_uint dim = 256 + 2;
+	cl_uint dim = 512 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, events_from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
