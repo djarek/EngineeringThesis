@@ -31,7 +31,6 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	ScalarField scalar_buffer(total_cell_count, Scalar{0.0});
 
 	u = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
-	dye = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	w = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
 	gradient_p = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
 	temporary_w = cl::Buffer{context, zero_vector_buffer.begin(), zero_vector_buffer.end(), false};
@@ -39,6 +38,8 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
+	std::fill(scalar_buffer.begin(), scalar_buffer.end(), .01);
+	dye = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const Scalar time_step = .1;
 	const Scalar dx = .01;
@@ -323,14 +324,14 @@ void Simulation::update()
 			apply_impulse(simulation_event);
 		}
 	}
-	
+
 	for (int i = 1; i < 20; ++ i) {
 		Event imp_source;
 		imp_source.point = Point{16, i * 0.05 * cell_count};
 		imp_source.value.as_vector = Vector{15.0, 0};
 		apply_impulse(imp_source);
 	}
-	
+
 	apply_dye_boundary_conditions();
 
 	apply_vector_boundary_conditions(w);
