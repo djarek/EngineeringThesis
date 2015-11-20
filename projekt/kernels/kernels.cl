@@ -37,12 +37,27 @@ inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const
 	const int x = max((int)floor(position.x), 0);
 	const int y = max((int)floor(position.y), 0);
 
-	const int x1 = min(x, SIZE - 2);
+	const int x1 = min(x, SIZE - 1);
 	const int x2 = min(x + 1, SIZE - 1);
-	const int y1 = min(y, SIZE - 2);
+	const int y1 = min(y, SIZE - 1);
 	const int y2 = min(y + 1, SIZE - 1);
+	
+	float x_pos;
+	float y_pos;
+	
+	if (x1 != x2) {
+		x_pos = (position.x - x1)/(x2 - x1);
+	} else {
+		x_pos = x1;
+	}
+	
+	if (y1 != y2) {
+		y_pos = (position.y - y1)/(y2 - y1);
+	} else {
+		y_pos = y1;
+	}
 
-	return blerp_scalar(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], (position.x - x1)/(x2 - x1), (position.y - y1)/(y2 - y1));
+	return fabs(blerp_scalar(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x_pos, y_pos));
 }
 
 kernel void advect_scalar(const GlobalScalarField x, const GlobalVectorField u, GlobalScalarField x_out, const Scalar dx_reversed, const Scalar time_step, const Scalar dissipation)
@@ -74,7 +89,23 @@ inline Vector bilinear_interpolation_vector(const GlobalVectorField field, const
 	const int y1 = y;
 	const int y2 = y + 1;
 
-	return blerp_vector(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], (position.x - x1)/(x2 - x1), (position.y - y1)/(y2 - y1));
+	
+	float x_pos;
+	float y_pos;
+	
+	if (x1 != x2) {
+		x_pos = (position.x - x1)/(x2 - x1);
+	} else {
+		x_pos = x1;
+	}
+	
+	if (y1 != y2) {
+		y_pos = (position.y - y1)/(y2 - y1);
+	} else {
+		y_pos = y1;
+	}
+	
+	return blerp_vector(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x_pos, y_pos);
 }
 
 kernel void advect_vector(const GlobalVectorField x, const GlobalVectorField u, GlobalVectorField x_out, const Scalar dx_reversed, const Scalar time_step, const Vector dissipation)

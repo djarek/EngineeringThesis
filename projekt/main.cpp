@@ -27,7 +27,7 @@ auto load_program(const cl::Context& context, const size_t size)
 void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{258, 258, dim, to_ui, from_ui, events_from_ui};
+	MainWindow window{4 * dim, 4 * dim, dim, to_ui, from_ui, events_from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
@@ -37,7 +37,7 @@ int main()
 	auto to_ui = Channel<ScalarField>::make();
 	auto from_ui = Channel<ScalarField>::make();
 	auto events_from_ui = Channel<Event>::make();
-	cl_uint dim = 256 + 2;
+	cl_uint dim = 128+32 + 2;
 	std::thread ui_thread{ui_main, to_ui, from_ui, events_from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
@@ -57,7 +57,7 @@ int main()
 		throw;
 	}
 
-	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui, events_from_ui, 256};
+	Simulation simulation{cmd_queue, context, dim, program, to_ui, from_ui, events_from_ui, std::min(dim - 2, 256u)};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
 	}

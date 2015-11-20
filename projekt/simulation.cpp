@@ -43,7 +43,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
-	const Scalar dye_dissipation = 0.99999;
+	const Scalar dye_dissipation = 1.0;
 	const Scalar ni = 1.13e-6;
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
@@ -230,7 +230,7 @@ void Simulation::apply_impulse(const Event& simulation_event)
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
 	
-	apply_impulse_kernel.setArg(3, Scalar{4});
+	apply_impulse_kernel.setArg(3, Scalar{2});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
@@ -242,7 +242,6 @@ void Simulation::add_dye(const Event& simulation_event)
 	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
 	add_dye_kernel.setArg(3, Scalar{16});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
-	apply_dye_boundary_conditions();
 }
 
 void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
@@ -283,19 +282,17 @@ void Simulation::apply_dye_boundary_conditions()
 
 void Simulation::update()
 {
-	static thread_local int i = 0;
-
-	Event simulation_event;
-	if (events_from_ui->try_pop(simulation_event)) {
-		cmd_queue.finish();
+	cmd_queue.finish();
+	auto events = events_from_ui->try_pop_all();
+	for (auto& simulation_event : events) {
 		if (simulation_event.type == Event::Type::ADD_DYE) {
 			add_dye(simulation_event);
 		} else if (simulation_event.type == Event::Type::APPLY_FORCE) {
-			std::cout << "Apply impulse\n";
+			//std::cout << "Apply impulse\n";
 			apply_impulse(simulation_event);
-		} 
+		}
 	}
-
+	apply_dye_boundary_conditions();
 
 	apply_vector_boundary_conditions(w);
 
@@ -320,7 +317,6 @@ void Simulation::update()
 
 	calculate_u();
 	apply_vector_boundary_conditions(u);
-	++i;
 
 	ScalarField output_buffer;
 
@@ -330,6 +326,13 @@ void Simulation::update()
 
 	cl::copy(cmd_queue, dye, output_buffer.begin(), output_buffer.end());
 
-	to_ui->try_push(output_buffer);
-	std::cout << i << std::endl;
+	
+	if (dye_buffers_wait_list.empty()) {
+		to_ui->try_push(output_buffer);
+	} else {
+		dye_buffers_wait_list.emplace_back(output_buffer);
+		to_ui->try_push_all(dye_buffers_wait_list);
+	}
+	
+	
 }

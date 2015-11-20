@@ -45,6 +45,7 @@ class Simulation
 	Channel_ptr<Event> events_from_ui;
 
 	VectorField zero_vector_buffer;
+	std::deque<ScalarField> dye_buffers_wait_list;
 	
 	const cl_uint workgroup_size;
 public:

@@ -62,7 +62,7 @@ public:
 			left_mouse_button_pressed = true;
 		} else if (event.button.button == SDL_BUTTON_RIGHT) {
 			Event simulation_event;
-			simulation_event.point = Point{1.0 * event.button.x / pixels_per_cell, 1.0 * event.button.y / pixels_per_cell};
+			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.button.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.button.y / pixels_per_cell)};
 			simulation_event.type = Event::Type::ADD_DYE;
 			simulation_event.value.as_scalar = Scalar{1};
 			events_from_ui->try_push(simulation_event);
@@ -73,16 +73,10 @@ public:
 	{
 		if (left_mouse_button_pressed) {
 			Event simulation_event;
-			simulation_event.point = Point{1.0 * event.motion.x, 1.0 * event.motion.y / pixels_per_cell};
-			simulation_event.value.as_vector = Vector{1.0f * event.motion.xrel / pixels_per_cell, 1.0f * event.motion.yrel / pixels_per_cell};
+			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.motion.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.motion.y / pixels_per_cell)};
+			simulation_event.value.as_vector = Vector{1.0 * event.motion.xrel / pixels_per_cell, 1.0 * event.motion.yrel / pixels_per_cell};
 			simulation_event.type = Event::Type::APPLY_FORCE;
-			std::cout << "--\n";
-			std::cout << event.motion.x << ", " << event.motion.y << std::endl;
-			std::cout << simulation_event.point.s[0] << ", " << simulation_event.point.s[1] << std::endl;
-			std::cout << "--\n";
-			//std::cout << simulation_event.value.as_vector.s[0] << ", "<< simulation_event.value.as_vector.s[1] << std::endl;
 			events_from_ui->try_push(simulation_event);
-			
 		}
 	}
 	
@@ -92,7 +86,7 @@ public:
 		bool quit = false;
 		extern std::atomic<bool> running;
 		while (!quit) {
-			if (SDL_WaitEventTimeout(&event, 16)) {
+			if (SDL_WaitEventTimeout(&event, 1)) {
 				switch (event.type) {
 				case SDL_QUIT:
 					quit = true;
@@ -150,7 +144,7 @@ public:
 				rect.y = y * pixels_per_cell;
 				auto field_val = field[y * cells + x];
 				if (field_val < 0.0) {
-					SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+					SDL_SetRenderDrawColor(renderer, 0, std::min(fabs(255 * field[y * cells + x]), 255.0), 0, 255);
 				} else {
 					SDL_SetRenderDrawColor(renderer, std::min(255 * field[y * cells + x], 255.0f), 0, 0, 255);
 				}
