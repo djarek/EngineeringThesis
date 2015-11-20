@@ -202,7 +202,7 @@ kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, con
 
 	int dist_from_impulse_squared = pown((Scalar)(position.x - impulse_position.x), 2) + pown((Scalar)(position.y - impulse_position.y), 2);
 
-	w[AT_POS(position)] += force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2));
+	w[AT_POS(position)] += 100 * force * dt * exp(-dist_from_impulse_squared / pown(impulse_range, 2));
 }
 
 kernel void apply_gravity(GlobalVectorField w)

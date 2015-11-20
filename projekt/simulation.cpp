@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 150;
+constexpr auto jacobi_iterations = 200;
 
 Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
@@ -46,8 +46,8 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
 	const Scalar dye_dissipation = 1.0;
-	const Scalar ni = 1.13e-9;
-	const Scalar vorticity_confinemnet_scale{0.35};
+	const Scalar ni = 1.13e-6;
+	const Scalar vorticity_confinemnet_scale{3.0};
 	const Vector vorticity_dx_scale{vorticity_confinemnet_scale * dx, vorticity_confinemnet_scale * dx};
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
@@ -244,7 +244,7 @@ void Simulation::apply_impulse(const Event& simulation_event)
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
 	
-	apply_impulse_kernel.setArg(3, Scalar{4});
+	apply_impulse_kernel.setArg(3, Scalar{1});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
@@ -253,7 +253,7 @@ void Simulation::add_dye(const Event& simulation_event)
 	add_dye_kernel.setArg(0, dye);
 	add_dye_kernel.setArg(1, simulation_event.point);
 	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
-	add_dye_kernel.setArg(3, Scalar{32});
+	add_dye_kernel.setArg(3, Scalar{64});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
 }
 

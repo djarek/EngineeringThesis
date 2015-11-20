@@ -74,7 +74,7 @@ public:
 		if (left_mouse_button_pressed) {
 			Event simulation_event;
 			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.motion.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.motion.y / pixels_per_cell)};
-			simulation_event.value.as_vector = Vector{std::max(std::min(1.0f * event.motion.xrel / pixels_per_cell, 2.0f), -2.0f), std::max(std::min(1.0f * event.motion.yrel / pixels_per_cell, 2.0f), -2.0f)};
+			simulation_event.value.as_vector = Vector{std::max(std::min(1.0f * event.motion.xrel / pixels_per_cell, 5.0f), -5.0f), std::max(std::min(1.0f * event.motion.yrel / pixels_per_cell, 5.0f), -5.0f)};
 			std::cout << simulation_event.value.as_vector.s[0] << ", " << simulation_event.value.as_vector.s[1] << std::endl;
 			simulation_event.type = Event::Type::APPLY_FORCE;
 			events_from_ui->try_push(simulation_event);
