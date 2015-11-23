@@ -147,7 +147,7 @@ void Simulation::enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kerne
 
 void Simulation::calculate_advection()
 {
-	vector_advection_kernel.setArg(0, w);
+	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
 	vector_advection_kernel.setArg(2, temporary_w);
 	enqueueInnerKernel(cmd_queue, vector_advection_kernel);
@@ -319,6 +319,7 @@ void Simulation::apply_vorticity()
 
 void Simulation::update()
 {
+	calculate_advection();
 	auto events = events_from_ui->try_pop_all();
 	if (not events.empty()) {
 		cmd_queue.finish();
@@ -345,8 +346,6 @@ void Simulation::update()
 	apply_dye_boundary_conditions();
 
 	apply_vector_boundary_conditions(w);
-
-	calculate_advection();
 
 	apply_vector_boundary_conditions(w);
 
