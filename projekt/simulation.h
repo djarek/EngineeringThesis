@@ -41,6 +41,7 @@ class Simulation
 	cl::Kernel dye_boundary_conditions_kernel;
 	cl::Kernel vorticity_kernel;
 	cl::Kernel apply_vorticity_kernel;
+	cl::Kernel apply_gravity_kernel;
 
 	Channel_ptr<ScalarField> to_ui;
 	Channel_ptr<ScalarField> from_ui;
@@ -70,7 +71,7 @@ private:
 	void apply_impulse(const Event& simulation_event);
 	void add_dye(const Event& simulation_event);
 	void apply_dye_boundary_conditions();
-	
+	void apply_gravity();
 	void apply_vorticity();
 };
 #endif //SIMULATION_H

@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 200;
+constexpr auto jacobi_iterations = 150;
 
 Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
@@ -22,6 +22,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	dye_boundary_conditions_kernel(program, "apply_dye_boundary_conditions"),
 	vorticity_kernel(program, "vorticity"),
 	apply_vorticity_kernel(program, "apply_voritcity_force"),
+	apply_gravity_kernel(program, "apply_gravity"),
 	to_ui(to_ui),
 	from_ui(from_ui),
 	events_from_ui(events_from_ui),
@@ -38,16 +39,16 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
-	std::fill(scalar_buffer.begin(), scalar_buffer.end(), .01);
+	//std::fill(scalar_buffer.begin(), scalar_buffer.end(), .01);
 	dye = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const Scalar time_step = .1;
-	const Scalar dx = .01;
+	const Scalar dx = .1;
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
-	const Scalar dye_dissipation = 1.0;
-	const Scalar ni = 1.13e-6;
+	const Scalar dye_dissipation = 0.99999;
+	const Scalar ni = 1.13e-9;
 	const Scalar vorticity_confinemnet_scale{3.0};
 	const Vector vorticity_dx_scale{vorticity_confinemnet_scale * dx, vorticity_confinemnet_scale * dx};
 	vector_advection_kernel.setArg(0, u);
@@ -104,6 +105,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_vorticity_kernel.setArg(4, time_step);
 	apply_vorticity_kernel.setArg(5, vorticity_dx_scale);
 
+	apply_gravity_kernel.setArg(0, temporary_w);
 	std::srand(42);
 }
 
@@ -245,7 +247,7 @@ void Simulation::apply_impulse(const Event& simulation_event)
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
 	
-	apply_impulse_kernel.setArg(3, Scalar{1});
+	apply_impulse_kernel.setArg(3, Scalar{2});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
 
@@ -256,6 +258,12 @@ void Simulation::add_dye(const Event& simulation_event)
 	add_dye_kernel.setArg(2, simulation_event.value.as_scalar);
 	add_dye_kernel.setArg(3, Scalar{64});
 	enqueueInnerKernel(cmd_queue, add_dye_kernel);
+}
+
+void Simulation::apply_gravity()
+{
+	apply_gravity_kernel.setArg(0, w);
+	enqueueInnerKernel(cmd_queue, apply_gravity_kernel);
 }
 
 void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
@@ -307,7 +315,6 @@ void Simulation::apply_vorticity()
 	enqueueInnerKernel(cmd_queue, apply_vorticity_kernel);
 	using std::swap;
 	swap(w, temporary_w);
-	cmd_queue.finish();
 }
 
 
@@ -325,12 +332,16 @@ void Simulation::update()
 		}
 	}
 
-	for (int i = 1; i < 20; ++ i) {
+	for (int i = 1; i < 10; ++ i) {
 		Event imp_source;
-		imp_source.point = Point{16, i * 0.05 * cell_count};
-		imp_source.value.as_vector = Vector{15.0, 0};
+		imp_source.point = Point{i * 0.1 * cell_count, cell_count * 0.8};
+		imp_source.value.as_vector = Vector{0, -20.0};
 		apply_impulse(imp_source);
+		imp_source.value.as_scalar = Scalar{0.01};
+		add_dye(imp_source);
 	}
+	
+	apply_gravity();
 
 	apply_dye_boundary_conditions();
 
