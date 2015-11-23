@@ -4,7 +4,7 @@
 
 constexpr auto jacobi_iterations = 150;
 
-Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
+Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
 	cell_count(cell_count),
 	total_cell_count(cell_count * cell_count),
@@ -24,7 +24,6 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_vorticity_kernel(program, "apply_voritcity_force"),
 	apply_gravity_kernel(program, "apply_gravity"),
 	to_ui(to_ui),
-	from_ui(from_ui),
 	events_from_ui(events_from_ui),
 	zero_vector_buffer(total_cell_count, Vector{0.0, 0.0}),
 	workgroup_size(workgroup_size)
@@ -370,9 +369,7 @@ void Simulation::update()
 
 	ScalarField output_buffer;
 
-	if (not from_ui->try_pop(output_buffer)) {
-		output_buffer.resize(total_cell_count);
-	}
+	output_buffer.resize(total_cell_count);
 
 	cl::copy(cmd_queue, dye, output_buffer.begin(), output_buffer.end());
 

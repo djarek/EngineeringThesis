@@ -30,17 +30,15 @@ class MainWindow
 	SDL_Rect boundary_rect;
 	ScalarField field;
 	Channel_ptr<ScalarField> to_ui;
-	Channel_ptr<ScalarField> from_ui;
 	Channel_ptr<Event> events_from_ui;
 	bool left_mouse_button_pressed {false};
 public:
-	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<ScalarField> from_ui, Channel_ptr<Event> events_from_ui):
+	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui):
 		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
 		to_ui(to_ui),
-		from_ui(from_ui),
 		events_from_ui(events_from_ui)
 	{
 		boundary_rect.w = pixels_per_cell * cells;
@@ -127,10 +125,12 @@ public:
 		rect.h = pixels_per_cell;
 
 		{
+			std::deque<ScalarField> field_queue = to_ui->try_pop_all();
 			ScalarField field;
-			if (to_ui->try_pop(field)) {
+			if (not field_queue.empty()) {
 				if (not this->field.empty()) {
-					from_ui->try_push(this->field);
+					std::swap(this->field, field_queue.back());
+					//from_ui->try_push_all(this->field);
 				}
 				if (not field.empty()) {
 					this->field = std::move(field);
