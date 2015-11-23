@@ -60,20 +60,29 @@ public:
 			left_mouse_button_pressed = true;
 		} else if (event.button.button == SDL_BUTTON_RIGHT) {
 			Event simulation_event;
-			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.button.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.button.y / pixels_per_cell)};
+			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.button.x / pixels_per_cell),
+						       static_cast<cl_int>(1.0 * event.button.y / pixels_per_cell)};
 			simulation_event.type = Event::Type::ADD_DYE;
 			simulation_event.value.as_scalar = Scalar{1};
 			events_from_ui->try_push(simulation_event);
 		}
 	}
 
+	Vector normalize_velocity(float x, float y)
+	{
+		return Vector{std::max(std::min(x, 5.0f), -5.0f), std::max(std::min(y, 5.0f), -5.0f)};
+	}
+
 	void onMouseMove(const SDL_Event& event)
 	{
 		if (left_mouse_button_pressed) {
 			Event simulation_event;
-			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.motion.x / pixels_per_cell), static_cast<cl_int>(1.0 * event.motion.y / pixels_per_cell)};
-			simulation_event.value.as_vector = Vector{5.0f*std::max(std::min(1.0f * event.motion.xrel / pixels_per_cell, 5.0f), -5.0f), 5.0f*std::max(std::min(1.0f * event.motion.yrel / pixels_per_cell, 5.0f), -5.0f)};
-			std::cout << simulation_event.value.as_vector.s[0] << ", " << simulation_event.value.as_vector.s[1] << std::endl;
+
+			simulation_event.point = Point{static_cast<cl_int>(1.0 * event.motion.x / pixels_per_cell),
+						       static_cast<cl_int>(1.0 * event.motion.y / pixels_per_cell)};
+			simulation_event.value.as_vector = normalize_velocity(1.0f * event.motion.xrel / pixels_per_cell,
+									      1.0f * event.motion.yrel / pixels_per_cell);
+
 			simulation_event.type = Event::Type::APPLY_FORCE;
 			events_from_ui->try_push(simulation_event);
 		}
@@ -135,7 +144,6 @@ public:
 			if (not field_queue.empty()) {
 				if (not this->field.empty()) {
 					std::swap(this->field, field_queue.back());
-					//from_ui->try_push_all(this->field);
 				}
 				if (not field.empty()) {
 					this->field = std::move(field);
