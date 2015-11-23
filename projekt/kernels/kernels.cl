@@ -208,7 +208,7 @@ kernel void apply_impulse(GlobalVectorField w, const Point impulse_position, con
 kernel void apply_gravity(GlobalVectorField w)
 {
 	const Point position = getPosition();
-	const Vector gravity = {0.0, 0.002};
+	const Vector gravity = {0.0, 0.000};
 	w[AT_POS(position)] += gravity;
 }
 

@@ -38,17 +38,16 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	temporary_p = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 	divergence_w = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
-	//std::fill(scalar_buffer.begin(), scalar_buffer.end(), .01);
 	dye = cl::Buffer{context, scalar_buffer.begin(), scalar_buffer.end(), false};
 
 	const Scalar time_step = .1;
-	const Scalar dx = .1;
+	const Scalar dx = .2;
 	const Scalar dx_reciprocal = 1 / dx;
 	const Scalar halved_dx_reciprocal = dx_reciprocal * 0.5;
 	const auto velocity_dissipation = Vector{0.99, 0.99};
-	const Scalar dye_dissipation = 0.99999;
-	const Scalar ni = 1.13e-9;
-	const Scalar vorticity_confinemnet_scale{3.0};
+	const Scalar dye_dissipation = 0.999;
+	const Scalar ni = 1.13e-3;
+	const Scalar vorticity_confinemnet_scale{0.35};
 	const Vector vorticity_dx_scale{vorticity_confinemnet_scale * dx, vorticity_confinemnet_scale * dx};
 	vector_advection_kernel.setArg(0, u);
 	vector_advection_kernel.setArg(1, u);
@@ -334,7 +333,7 @@ void Simulation::update()
 
 	for (int i = 1; i < 10; ++ i) {
 		Event imp_source;
-		imp_source.point = Point{i * 0.1 * cell_count, cell_count * 0.8};
+		imp_source.point = Point{static_cast<cl_int>(i * 0.1 * cell_count), static_cast<cl_int>(cell_count * 0.8)};
 		imp_source.value.as_vector = Vector{0, -20.0};
 		apply_impulse(imp_source);
 		imp_source.value.as_scalar = Scalar{0.01};
