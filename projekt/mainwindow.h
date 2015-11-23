@@ -34,7 +34,7 @@ class MainWindow
 	bool left_mouse_button_pressed {false};
 public:
 	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui):
-		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN)),
+		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN/* | SDL_WINDOW_FULLSCREEN*/)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
@@ -79,37 +79,42 @@ public:
 		}
 	}
 	
+	void dispatch_event(const SDL_Event& event) {
+		extern std::atomic<bool> running;
+		switch (event.type) {
+			case SDL_QUIT:
+				running.store(false, std::memory_order_relaxed);
+				break;
+			case SDL_WINDOWEVENT:
+				paint();
+				break;
+			case SDL_MOUSEMOTION:
+				onMouseMove(event);
+				break;
+			case SDL_MOUSEBUTTONUP:
+				onMouseButtonUp(event);
+				break;
+			case SDL_MOUSEBUTTONDOWN:
+				onMouseButtonDown(event);
+				break;
+			default:
+				break;
+		}
+	}
+
 	void event_loop()
 	{
 		SDL_Event event;
-		bool quit = false;
 		extern std::atomic<bool> running;
-		while (!quit) {
-			if (SDL_WaitEventTimeout(&event, 1)) {
-				switch (event.type) {
-				case SDL_QUIT:
-					quit = true;
-					running.store(false, std::memory_order_relaxed);
-					break;
-				case SDL_WINDOWEVENT:
-					paint();
-					continue;
-				case SDL_MOUSEMOTION:
-					onMouseMove(event);
-					break;
-				case SDL_MOUSEBUTTONUP:
-					onMouseButtonUp(event);
-					break;
-				case SDL_MOUSEBUTTONDOWN:
-					onMouseButtonDown(event);
-					break;
-				default:
-					break;
+		while (running.load(std::memory_order_relaxed)) {
+			if (SDL_WaitEventTimeout(&event, 16)) {
+				dispatch_event(event);
+				while(SDL_PollEvent(&event)) {
+					dispatch_event(event);
 				}
 			}
 
 			paint();
-			//SDL_Delay(33);
 		}
 	}
 
