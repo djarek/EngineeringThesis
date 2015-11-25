@@ -34,28 +34,15 @@ inline Scalar blerp_scalar(Scalar c00, Scalar c10, Scalar c01, Scalar c11, Scala
 
 inline Scalar bilinear_interpolation_scalar(const GlobalScalarField field, const Vector position)
 {
-	const int x = max((int)floor(position.x), 0);
-	const int y = max((int)floor(position.y), 0);
+	const int x = min(max((int)floor(position.x), 1), SIZE - 3);
+	const int y = min(max((int)floor(position.y), 1), SIZE - 3);
+	const int x1 = x;
+	const int x2 = x + 1;
+	const int y1 = y;
+	const int y2 = y + 1;
 
-	const int x1 = min(x, SIZE - 1);
-	const int x2 = min(x + 1, SIZE - 1);
-	const int y1 = min(y, SIZE - 1);
-	const int y2 = min(y + 1, SIZE - 1);
-	
-	float x_pos;
-	float y_pos;
-	
-	if (x1 != x2) {
-		x_pos = (fabs(position.x) - x1) / (x2 - x1);
-	} else {
-		x_pos = x1;
-	}
-	
-	if (y1 != y2) {
-		y_pos = (fabs(position.y) - y1) / (y2 - y1);
-	} else {
-		y_pos = y1;
-	}
+	float x_pos = (fabs(position.x) - x1) / (x2 - x1);
+	float y_pos = (fabs(position.y) - y1) / (y2 - y1);
 
 	return fabs(blerp_scalar(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x_pos, y_pos));
 }
@@ -82,29 +69,16 @@ inline Vector blerp_vector(Vector c00, Vector c10, Vector c01, Vector c11, Scala
 
 inline Vector bilinear_interpolation_vector(const GlobalVectorField field, const Vector position)
 {
-	const int x = min(max((int)floor(position.x), 0), SIZE - 2);
-	const int y = min(max((int)floor(position.y), 0), SIZE - 2);
+	const int x = min(max((int)floor(position.x), 1), SIZE - 3);
+	const int y = min(max((int)floor(position.y), 1), SIZE - 3);
 	const int x1 = x;
 	const int x2 = x + 1;
 	const int y1 = y;
 	const int y2 = y + 1;
 
-	
-	float x_pos;
-	float y_pos;
-	
-	if (x1 != x2) {
-		x_pos = (max(position.x, 0.0f) - x1) / (x2 - x1);
-	} else {
-		x_pos = x1;
-	}
-	
-	if (y1 != y2) {
-		y_pos = (max(position.y, 0.0f) - y1) / (y2 - y1);
-	} else {
-		y_pos = y1;
-	}
-	
+	float x_pos = (fabs(position.x) - x1) / (x2 - x1);
+	float y_pos = (fabs(position.y) - y1) / (y2 - y1);
+
 	return blerp_vector(field[AT(x1, y1)], field[AT(x2, y1)], field[AT(x1, y2)], field[AT(x2, y2)], x_pos, y_pos);
 }
 
@@ -237,7 +211,7 @@ kernel void vorticity(GlobalVectorField w, GlobalScalarField vorticity, Scalar h
 	const Vector w_right = w[AT(position.x + 1, position.y)];
 	const Vector w_top = w[AT(position.x, position.y + 1)];
 	const Vector w_bottom = w[AT(position.x, position.y - 1)];
-	
+
 	vorticity[AT_POS(position)] = halved_reverse_dx * ((w_right.y - w_left.y) - (w_top.x - w_bottom.x));
 }
 
@@ -253,16 +227,16 @@ kernel void apply_voritcity_force(GlobalScalarField vorticity, GlobalVectorField
 	const Scalar v_right = vorticity[AT(position.x + 1, position.y)];
 	const Scalar v_top = vorticity[AT(position.x, position.y + 1)];
 	const Scalar v_bottom = vorticity[AT(position.x, position.y - 1)];
-	
+
 	const Scalar v_center = vorticity[index];
-	
+
 	Scalar force_x = fabs(v_top) - fabs(v_bottom);
 	Scalar force_y = fabs(v_right) - fabs(v_left);
-	
+
 	Vector force = {force_x, force_y};
 	Scalar mag_squared = max(EPSILON, dot(force, force));
 	force *= rsqrt(mag_squared);
-	
+
 	force *= vorticity_dx_scale * v_center * (Vector)(1, -1);
 
 	w_out[index] += time_step * force;

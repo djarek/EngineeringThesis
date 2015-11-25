@@ -40,7 +40,7 @@ public:
 			return false;
 		}
 	}
-	
+
 	std::deque<T> try_pop_all()
 	{
 		std::unique_lock<std::mutex> guard{mutex, std::try_to_lock_t{}};
@@ -50,19 +50,18 @@ public:
 		}
 		return ret;
 	}
-	
+
 	bool try_push_all(std::deque<T>& items)
 	{
 		std::unique_lock<std::mutex> guard{mutex, std::try_to_lock_t{}};
 		if (guard.owns_lock()) {
-			//this->items.reserve(this->items.size() + items.size());
-			std::copy(items.begin(), items.end(), std::back_inserter(this->items));
+			std::move(items.begin(), items.end(), std::back_inserter(this->items));
 			items.clear();
 			return true;
 		} else {
 			return false;
 		}
-		
+
 	}
 };
 

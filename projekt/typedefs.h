@@ -15,7 +15,7 @@ struct Event {
 		ADD_DYE,
 		APPLY_FORCE
 	};
-	
+
 	Type type {Type::ADD_DYE};
 	Point point;
 	union {

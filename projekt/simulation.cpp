@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <iostream>
 
-constexpr auto jacobi_iterations = 150;
+constexpr auto jacobi_iterations = 100;
 
 Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
@@ -91,11 +91,11 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_impulse_kernel.setArg(4, time_step);
 
 	add_dye_kernel.setArg(4, time_step);
-	
+
 	vorticity_kernel.setArg(0, w);
 	vorticity_kernel.setArg(1, temporary_p);
 	vorticity_kernel.setArg(2, halved_dx_reciprocal);
-	
+
 	apply_vorticity_kernel.setArg(0, temporary_p);
 	apply_vorticity_kernel.setArg(1, w);
 	apply_vorticity_kernel.setArg(2, temporary_w);
@@ -244,7 +244,7 @@ void Simulation::apply_impulse(const Event& simulation_event)
 	apply_impulse_kernel.setArg(0, w);
 	apply_impulse_kernel.setArg(1, simulation_event.point);
 	apply_impulse_kernel.setArg(2, simulation_event.value.as_vector);
-	
+
 	apply_impulse_kernel.setArg(3, Scalar{2});
 	enqueueInnerKernel(cmd_queue, apply_impulse_kernel);
 }
@@ -339,7 +339,7 @@ void Simulation::update()
 		imp_source.value.as_scalar = Scalar{0.01};
 		add_dye(imp_source);
 	}
-	
+
 	apply_gravity();
 
 	apply_dye_boundary_conditions();
@@ -377,6 +377,6 @@ void Simulation::update()
 		dye_buffers_wait_list.emplace_back(output_buffer);
 		to_ui->try_push_all(dye_buffers_wait_list);
 	}
-	
-	
+
+
 }
