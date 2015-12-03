@@ -1,49 +1,45 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
-#include <string>
 #include "simulation.h"
 #include "mainwindow.h"
 #include "thread"
 #include "atomic"
 
 std::atomic<bool> running {true};
-auto& operator<<(std::ofstream& out, const Vector& vec)
-{
-	out << "("<< vec.s[0] << "," << vec.s[1] << ") ";
-	return out;
-}
 
-auto load_program(const cl::Context& context, const size_t size)
+static auto load_program(const cl::Context& context, const size_t size)
 {
 	std::ifstream kernels_file("kernels/kernels.cl");
 	std::string kernel_sources {"#define SIZE "};
 	kernel_sources.append(std::to_string(size));
-	std::copy(std::istreambuf_iterator<char>(kernels_file), std::istreambuf_iterator<char>(), std::back_inserter(kernel_sources));
+	std::copy(std::istreambuf_iterator<char>(kernels_file), std::istreambuf_iterator<char>(),
+		  std::back_inserter(kernel_sources));
 
 	return cl::Program(context, kernel_sources);
 }
 
-void ui_main(Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui, cl_uint dim)
+static void ui_main(Channel_ptr<ScalarField> dye_field_to_ui, Channel_ptr<Event> events_from_ui, cl_uint dim)
 {
 	SDL_Init(SDL_INIT_EVERYTHING);
-	MainWindow window{640, 640, dim, to_ui, events_from_ui};
+	MainWindow window{640, 640, dim, dye_field_to_ui, events_from_ui};
 	window.event_loop();
 	SDL_Quit();
 }
 
 int main()
 {
-	auto to_ui = Channel<ScalarField>::make();
+	auto dye_field_to_ui = Channel<ScalarField>::make();
 	auto events_from_ui = Channel<Event>::make();
 	cl_uint dim = 512 + 2;
-	std::thread ui_thread{ui_main, to_ui, events_from_ui, dim};
+	const auto workgroup_size = std::min(dim - 2, 256u);
+	std::thread ui_thread{ui_main, dye_field_to_ui, events_from_ui, dim};
 
 	std::vector<cl::Platform> platforms;
 	std::vector<cl::Device> devices;
 
 	cl::Platform::get(&platforms);
-	platforms[0].getDevices(CL_DEVICE_TYPE_GPU, &devices);
+	platforms[0].getDevices(CL_DEVICE_TYPE_CPU, &devices);
 
 	cl::Context context{devices};
 	cl::CommandQueue cmd_queue{context, devices[0]};
@@ -56,7 +52,7 @@ int main()
 		throw;
 	}
 
-	Simulation simulation{cmd_queue, context, dim, program, to_ui, events_from_ui, std::min(dim - 2, 256u)};
+	Simulation simulation{cmd_queue, context, dim, program, dye_field_to_ui, events_from_ui, workgroup_size};
 	while (running.load(std::memory_order_relaxed)) {
 		simulation.update();
 	}

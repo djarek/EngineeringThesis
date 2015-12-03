@@ -29,16 +29,16 @@ class MainWindow
 	uint pixels_per_cell;
 	SDL_Rect boundary_rect;
 	ScalarField field;
-	Channel_ptr<ScalarField> to_ui;
+	Channel_ptr<ScalarField> dye_field_to_ui;
 	Channel_ptr<Event> events_from_ui;
 	bool left_mouse_button_pressed {false};
 public:
-	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui):
+	MainWindow(int size_x, int size_y, uint cells, Channel_ptr<ScalarField> dye_field_to_ui, Channel_ptr<Event> events_from_ui):
 		window(SDL_CreateWindow("Window", 0, 0, size_x, size_y, SDL_WINDOW_SHOWN/* | SDL_WINDOW_FULLSCREEN*/)),
 		renderer(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC)),
 		cells(cells),
 		pixels_per_cell(std::min(size_x, size_y) / cells),
-		to_ui(to_ui),
+		dye_field_to_ui(dye_field_to_ui),
 		events_from_ui(events_from_ui)
 	{
 		boundary_rect.w = pixels_per_cell * cells;
@@ -117,10 +117,9 @@ public:
 		extern std::atomic<bool> running;
 		while (running.load(std::memory_order_relaxed)) {
 			if (SDL_WaitEventTimeout(&event, 16)) {
-				dispatch_event(event);
-				while(SDL_PollEvent(&event)) {
+				do {
 					dispatch_event(event);
-				}
+				} while(SDL_PollEvent(&event));
 			}
 
 			paint();
@@ -139,7 +138,7 @@ public:
 		rect.h = pixels_per_cell;
 
 		{
-			std::deque<ScalarField> field_queue = to_ui->try_pop_all();
+			std::deque<ScalarField> field_queue = dye_field_to_ui->try_pop_all();
 			ScalarField field;
 			if (not field_queue.empty()) {
 				if (not this->field.empty()) {

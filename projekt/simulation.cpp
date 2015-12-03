@@ -4,7 +4,13 @@
 
 constexpr auto jacobi_iterations = 100;
 
-Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, cl_uint cell_count, const cl::Program& program, Channel_ptr<ScalarField> to_ui, Channel_ptr<Event> events_from_ui, cl_uint workgroup_size):
+Simulation::Simulation(cl::CommandQueue cmd_queue,
+		       const cl::Context& context,
+		       cl_uint cell_count,
+		       const cl::Program& program,
+		       Channel_ptr<ScalarField> to_ui,
+		       Channel_ptr<Event> events_from_ui,
+		       cl_uint workgroup_size):
 	cmd_queue(cmd_queue),
 	cell_count(cell_count),
 	total_cell_count(cell_count * cell_count),
@@ -104,10 +110,7 @@ Simulation::Simulation(cl::CommandQueue cmd_queue, const cl::Context& context, c
 	apply_vorticity_kernel.setArg(5, vorticity_dx_scale);
 
 	apply_gravity_kernel.setArg(0, temporary_w);
-	std::srand(42);
 }
-
-const auto local_range = cl::NullRange;
 
 void Simulation::enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& boundary_kernel) const
 {
@@ -116,15 +119,15 @@ void Simulation::enqueueBoundaryKernel(cl::CommandQueue& cmd_queue, cl::Kernel& 
 	//to calculate the boundary value
 	//Enqueue the first and last rows boundary calculations
 	boundary_kernel.setArg(1, Offset{0, 1});
-	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{1, 0}, cl::NDRange{boundary_cell_count, 1}, local_range);
+	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{1, 0}, cl::NDRange{boundary_cell_count, 1});
 	boundary_kernel.setArg(1, Offset{0, -1});
-	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{1, cell_count - 1}, cl::NDRange{boundary_cell_count, 1}, local_range);
+	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{1, cell_count - 1}, cl::NDRange{boundary_cell_count, 1});
 
 	//Enqueue the first and last columns boundary calculations
 	boundary_kernel.setArg(1, Offset{1, 0});
-	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{0, 1}, cl::NDRange{1, boundary_cell_count}, local_range);
+	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{0, 1}, cl::NDRange{1, boundary_cell_count});
 	boundary_kernel.setArg(1, Offset{-1, 0});
-	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{cell_count - 1, 1}, cl::NDRange{1, boundary_cell_count}, local_range);
+	cmd_queue.enqueueNDRangeKernel(boundary_kernel, cl::NDRange{cell_count - 1, 1}, cl::NDRange{1, boundary_cell_count});
 
 	cmd_queue.enqueueBarrierWithWaitList();
 }
@@ -137,7 +140,7 @@ void Simulation::enqueueInnerKernel(cl::CommandQueue& cmd_queue, const cl::Kerne
 
 	for (uint y = 1; y < cell_count - 2; y += workgroup_size) {
 		for (uint x = 1; x < cell_count - 2; x += workgroup_size) {
-			cmd_queue.enqueueNDRangeKernel(kernel, cl::NDRange{x, y}, range, local_range);
+			cmd_queue.enqueueNDRangeKernel(kernel, cl::NDRange{x, y}, range);
 		}
 	}
 
@@ -264,36 +267,6 @@ void Simulation::apply_gravity()
 	enqueueInnerKernel(cmd_queue, apply_gravity_kernel);
 }
 
-void print_vector(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
-{
-	VectorField vec;
-	vec.resize(cell_count * cell_count, Vector{1, 1});
-	cmd_queue.finish();
-	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
-	cmd_queue.finish();
-	for (uint x = 1; x < cell_count - 2; ++x) {
-		for (uint y = 1; y < cell_count - 2; ++y) {
-			std::cout << "(" << vec[y * cell_count + x].s[0] << ", " << vec[y * cell_count + x].s[1] << ") ";
-		}
-		std::cout << std::endl;
-	}
-}
-
-void print_scalar(cl::CommandQueue cmd_queue, const cl::Buffer& buffer, uint cell_count)
-{
-	ScalarField vec;
-	vec.resize(cell_count * cell_count, Scalar{1});
-	cmd_queue.finish();
-	cl::copy(cmd_queue, buffer, vec.begin(), vec.end());
-	cmd_queue.finish();
-	for (uint x = 1; x < cell_count - 2; ++x) {
-		for (uint y = 1; y < cell_count - 2; ++y) {
-			std::cout << vec[y * cell_count + x] << " ";
-		}
-		std::cout << std::endl;
-	}
-}
-
 void Simulation::apply_dye_boundary_conditions()
 {
 	dye_boundary_conditions_kernel.setArg(0, dye);
@@ -314,7 +287,6 @@ void Simulation::apply_vorticity()
 	using std::swap;
 	swap(w, temporary_w);
 }
-
 
 void Simulation::update()
 {
@@ -343,8 +315,6 @@ void Simulation::update()
 	apply_gravity();
 
 	apply_dye_boundary_conditions();
-
-	apply_vector_boundary_conditions(w);
 
 	apply_vector_boundary_conditions(w);
 
@@ -377,6 +347,4 @@ void Simulation::update()
 		dye_buffers_wait_list.emplace_back(output_buffer);
 		to_ui->try_push_all(dye_buffers_wait_list);
 	}
-
-
 }
